@@ -15,6 +15,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
@@ -73,26 +74,30 @@ public class JWTViewerPluginService extends PluginService {
     @Override
     public void execute(PluginServiceCallbacks callbacks, HttpServletRequest request, HttpServletResponse response) {
         // Get JWT endpoint from configuration
-        String jwtServerURI = null;
-        String renderQuality = null;
+        String jwtServerURI;
+        String renderQuality;
         try {
             jwtServerURI = (String) JSONObject.parse(callbacks.loadConfiguration()).get("jwtServerURI");
             renderQuality = (String) JSONObject.parse(callbacks.loadConfiguration()).get("renderQuality");
         } catch (final Exception e) {
             Logger.logError(this, "execute", "Couldn't load the configuration. ", e);
+            this.sendErrorIFrame(response, "Couldn't load the configuration.");
+            return;
         }
         if (jwtServerURI == null) {
+            Logger.logError(this, "execute", request, "jadice webtoolkit endpoint not configured");
             this.sendErrorIFrame(response, "jadice webtoolkit endpoint not configured");
             return;
         }
-
         // this is the URL for the REST-Endpoint of CN to receive the document
         final String docUrlString = request.getParameter("docUrl");
-
+        Logger.logDebug(this, "execute", request,
+                "Downloading the following Document from ICN: " + docUrlString);
         URL docUrl = null;
         try {
             docUrl = new URL(new URL(request.getRequestURL().toString()), docUrlString);
-        } catch (MalformedURLException ignored) {
+        } catch (MalformedURLException malformedURLException) {
+            Logger.logError(this, "execute", "MalformedURLException. ", malformedURLException);
         }
 
         // Copy the cookies so the call is authenticated
@@ -105,6 +110,10 @@ public class JWTViewerPluginService extends PluginService {
                 cookieProperty.append(cookie.getValue());
                 cookieProperty.append(",");
             }
+        } else {
+            Logger.logError(this, "execute", request, "No cookies present");
+            this.sendErrorIFrame(response, "Not authenticated for ICN");
+            return;
         }
 
         HttpURLConnection docConnection = null;
@@ -117,13 +126,20 @@ public class JWTViewerPluginService extends PluginService {
             docStream = docConnection.getInputStream();
             try {
                 // Send it to JWT
-                docGeneratedId = sendPost(jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_DOCUMENT_URL, docStream);
-            } catch (Exception e) {
+                docGeneratedId = sendPost(jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_DOCUMENT_URL, docStream, request);
+                assert !docGeneratedId.isEmpty();
+                Logger.logDebug(this, "execute", request,
+                        "Got the following ID from jadice: " + docGeneratedId);
+            } catch (Exception exception) {
+                Logger.logError(this, "execute", request,
+                        "An error occurred while transferring the document to jadice", exception);
                 this.sendErrorIFrame(response, "An error occurred while transferring the document");
                 return;
             }
         } catch (IOException ioException) {
-            this.sendErrorIFrame(response, "An error occurred while reading the document");
+            Logger.logError(this, "execute", request,
+                    "An error occurred while reading the document from ICN", ioException);
+            this.sendErrorIFrame(response, "An error occurred while reading the document from ICN");
             return;
         } finally {
             if (docConnection != null) {
@@ -133,7 +149,6 @@ public class JWTViewerPluginService extends PluginService {
                 }
             }
         }
-
         // Display the JWT-viewer in the iframe
         this.sendViewerIFrame(response, jwtServerURI, docGeneratedId, renderQuality);
     }
@@ -150,21 +165,23 @@ public class JWTViewerPluginService extends PluginService {
      */
     private void sendViewerIFrame(HttpServletResponse response, String jwtEndpointUrl, String token, String renderQuality) {
         try {
-            response.setContentType("text/html");
-            final PrintWriter writer = response.getWriter();
-            writer.append("<html><body>");
-            writer.append("<script>location.href = '");
-            writer.append(jwtEndpointUrl);
-            writer.append("?");
+            response.setContentType("text/html; charset=utf-8");
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("<html><body>");
+            stringBuilder.append("<p>Redirecting...</p>");
+            stringBuilder.append("<script>location.href = '");
+            stringBuilder.append(jwtEndpointUrl);
+            stringBuilder.append("?");
             if (renderQuality != null && !"".equals(renderQuality)) {
-                writer.append("quality=");
-                writer.append(renderQuality);
-                writer.append("&");
+                stringBuilder.append("quality=");
+                stringBuilder.append(renderQuality);
+                stringBuilder.append("&");
             }
-            writer.append("t=");
-            writer.append(URLEncoder.encode(token, "UTF-8"));
-            writer.append("';</script>");
-            writer.append("</body></html>");
+            stringBuilder.append("t=");
+            stringBuilder.append(URLEncoder.encode(token, "UTF-8"));
+            stringBuilder.append("';</script>");
+            stringBuilder.append("</body></html>");
+            response.getOutputStream().write(stringBuilder.toString().getBytes(StandardCharsets.UTF_8));
         } catch (final IOException e) {
             Logger.logError(this, "execute", "Failed to get the PrintWriter from the HttpServletResponse.", e);
         }
@@ -195,19 +212,22 @@ public class JWTViewerPluginService extends PluginService {
      * @param inputStream the input-stream to copy the data from
      * @return the response of the POST-request
      */
-    private String sendPost(String url, InputStream inputStream) throws Exception {
+    private String sendPost(String url, InputStream inputStream, HttpServletRequest request) throws Exception {
         HttpURLConnection httpClient = (HttpURLConnection) new URL(url).openConnection();
         httpClient.setRequestMethod("POST");
 
         httpClient.setDoOutput(true);
+        int readBytes = 0;
         try (DataOutputStream target = new DataOutputStream(httpClient.getOutputStream())) {
             byte[] buf = new byte[8192];
             int length;
             while ((length = inputStream.read(buf)) > 0) {
                 target.write(buf, 0, length);
+                readBytes += length;
             }
             target.flush();
         }
+        Logger.logDebug(this, "sendPost", request, "Transferred " + readBytes + "bytes to jadice");
 
         StringBuilder response = new StringBuilder();
         try (BufferedReader in = new BufferedReader(new InputStreamReader(httpClient.getInputStream()))) {
