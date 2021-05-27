@@ -75,9 +75,11 @@ public class JWTViewerPluginService extends PluginService {
     public void execute(PluginServiceCallbacks callbacks, HttpServletRequest request, HttpServletResponse response) {
         // Get JWT endpoint from configuration
         String jwtServerURI;
+        String icnServerURI;
         String renderQuality;
         try {
             jwtServerURI = (String) JSONObject.parse(callbacks.loadConfiguration()).get("jwtServerURI");
+            icnServerURI = (String) JSONObject.parse(callbacks.loadConfiguration()).get("icnServerURI");
             renderQuality = (String) JSONObject.parse(callbacks.loadConfiguration()).get("renderQuality");
         } catch (final Exception e) {
             Logger.logError(this, "execute", "Couldn't load the configuration. ", e);
@@ -85,8 +87,13 @@ public class JWTViewerPluginService extends PluginService {
             return;
         }
         if (jwtServerURI == null) {
-            Logger.logError(this, "execute", request, "jadice webtoolkit endpoint not configured");
-            this.sendErrorIFrame(response, "jadice webtoolkit endpoint not configured");
+            Logger.logError(this, "execute", request, "jadice web toolkit server url not configured");
+            this.sendErrorIFrame(response, "jadice web toolkit server url not configured");
+            return;
+        }
+        if (icnServerURI == null) {
+            Logger.logError(this, "execute", request, "ICN server url not configured");
+            this.sendErrorIFrame(response, "ICN server url not configured");
             return;
         }
         // this is the URL for the REST-Endpoint of CN to receive the document
@@ -95,7 +102,7 @@ public class JWTViewerPluginService extends PluginService {
                 "Downloading the following Document from ICN: " + docUrlString);
         URL docUrl = null;
         try {
-            docUrl = new URL(new URL(request.getRequestURL().toString()), docUrlString);
+            docUrl = new URL(new URL(icnServerURI), docUrlString);
         } catch (MalformedURLException malformedURLException) {
             Logger.logError(this, "execute", "MalformedURLException. ", malformedURLException);
         }
@@ -150,7 +157,10 @@ public class JWTViewerPluginService extends PluginService {
             }
         }
         // Display the JWT-viewer in the iframe
-        this.sendViewerIFrame(response, jwtServerURI, docGeneratedId, renderQuality);
+        String requestURL = request.getRequestURL().toString();
+        String jwtContextPath = jwtServerURI.substring(jwtServerURI.lastIndexOf("/") + 1);
+        String jwtUserEndpoint = requestURL.substring(0, requestURL.indexOf(request.getContextPath())) + "/" + jwtContextPath;
+        this.sendViewerIFrame(response, jwtUserEndpoint, docGeneratedId, renderQuality);
     }
 
     /**
@@ -168,7 +178,7 @@ public class JWTViewerPluginService extends PluginService {
             response.setContentType("text/html; charset=utf-8");
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.append("<html><body>");
-            stringBuilder.append("<p>Redirecting...</p>");
+            stringBuilder.append("<p>Loading jadice web toolkit...</p>");
             stringBuilder.append("<script>location.href = '");
             stringBuilder.append(jwtEndpointUrl);
             stringBuilder.append("?");
