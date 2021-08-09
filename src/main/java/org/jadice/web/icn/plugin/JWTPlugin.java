@@ -86,7 +86,7 @@ public class JWTPlugin extends Plugin {
      */
     @Override
     public String getVersion() {
-        return "1.0.0";
+        return "1.2.0";
     }
 
     /**
@@ -139,7 +139,7 @@ public class JWTPlugin extends Plugin {
      */
     @Override
     public String getDojoModule() {
-        return "jWTPluginDojo";
+        return "JwtPluginDojo";
     }
 
     /**
@@ -250,7 +250,7 @@ public class JWTPlugin extends Plugin {
      */
     @Override
     public String getConfigurationDijitClass() {
-        return "jWTPluginDojo.ConfigurationPane";
+        return "JwtPluginDojo.ConfigurationPane";
     }
 
     /**

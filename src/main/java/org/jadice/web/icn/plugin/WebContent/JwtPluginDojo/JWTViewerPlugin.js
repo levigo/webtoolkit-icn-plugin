@@ -7,7 +7,7 @@ define([
     ], //
     function (declare, lang, DocViewer, template, LoggerMixin) {
 
-        return declare("jWTPluginDojo.JWTViewerPlugin", [
+        return declare("JwtPluginDojo.JWTViewerPlugin", [
             DocViewer,
             LoggerMixin
         ], {
