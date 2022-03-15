@@ -25,8 +25,8 @@ This plugins requires Content Navigator version 3.0.x and was tested with versio
 ### plugin installation
 1. Make sure the plugin JAR-file (e.g. webtoolkit-content-navigator-plugin-1.0.0.jar) is accessible from Content Navigator
 2. install the plugin via the admin-panel
-3. make sure you correctly define the "jadice web toolkit URL" field in the plugin installation process (e.g. http://myicnhost/p8integration , see below). This url is used by the Content Navigator server to transfer the documents to the jadice web toolkit.
-5. make sure you correctly define the "Content Navigator server URL" field in the plugin installation process (e.g. http://myicnhost/p8integration , see below). This url is used by the Content Navigator in the viewing window of the web-browser (client). As the Content Navigator has a strict same-origin-policy, this URL must use the same base-path as the Content Navigator itself. To achieve this, either deploy the jadice web toolkit WAR-file on the same application server as the Content Navigator or use a proxy. Chapter 9.8 of the "*Customizing and Extending
+3. make sure you correctly define the "jadice web toolkit URL" field in the plugin installation process (e.g. http://myicnhost/webtoolkit , see below). This url is used by the Content Navigator server to transfer the documents to the jadice web toolkit.
+5. make sure you correctly define the "Content Navigator server URL" field in the plugin installation process (e.g. http://myicnhost/webtoolkit , see below). This url is used by the Content Navigator in the viewing window of the web-browser (client). As the Content Navigator has a strict same-origin-policy, this URL must use the same base-path as the Content Navigator itself. To achieve this, either deploy the jadice web toolkit WAR-file on the same application server as the Content Navigator or use a proxy. Chapter 9.8 of the "*Customizing and Extending
    IBM Content Navigator*" Redbook provides more information about this setup.
 6. create a view-mapping for the new plugin in the admin-panel
 7. make sure the view-mapping is applied for the desired desktop
@@ -39,7 +39,7 @@ This plugins requires Content Navigator version 3.0.x and was tested with versio
 The standalone viewer is ready-to-use and can directly be used as a viewer for the Content Navigator. It is an optimized version of the **enterprise demo** that is part of the jadice web toolkit artifact.
 
 1. deploy the webtoolkit-content-navigator-integration WAR-file to the same application server as the Content Navigator. This is mandatory as the Content Navigator enforces same-origin-policy
-2. deploy the WAR-file with the context path "p8integration" so that it is reachable via e.g. http://myicnhost/p8integration (where Content Navigator is accessible via http://myicnhost/navigator )
+2. deploy the WAR-file with the context path "p8integration" so that it is reachable via e.g. http://myicnhost/webtoolkit (where Content Navigator is accessible via http://myicnhost/navigator )
 
 ### existing jadice web toolkit integration
 

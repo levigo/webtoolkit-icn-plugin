@@ -27,7 +27,7 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                         var href = window.location.href;
                         var ind = href.indexOf("/navigator");
                         if (ind >= 0) {
-                            var jwtServerURI = href.substr(0, ind) + "/p8integration";
+                            var jwtServerURI = href.substr(0, ind) + "/webtoolkit";
                             var icnServerURI = href.substr(0, ind);
                             var configJson = {
                                 "jwtServerURI": jwtServerURI,
