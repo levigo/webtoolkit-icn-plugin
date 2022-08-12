@@ -5,6 +5,7 @@ target
 dependency-reduced-pom.xml
 /lib/j2ee.jar
 /lib/navigatorAPI.jar
+/lib/icncore.jar
 
 # eclipse project files and directories
 .classpath

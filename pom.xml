@@ -97,12 +97,13 @@
                         </goals>
                         <configuration>
                             <target>
+                                <mkdir dir="${project.build.directory}/webresources-assemble"/>
                                 <!-- ~~~~~~~~~~~~~~ -->
                                 <!-- Copy web resources -->
                                 <!-- ~~~~~~~~~~~~~~ -->
                                 <copy todir="${project.build.directory}/webresources-assemble">
-                                    <fileset dir="${project.basedir}/src/main/java">
-                                        <include name="/org/jadice/web/icn/plugin/WebContent/**/*"/>
+                                    <fileset dir="${project.basedir}/src/main/java/">
+                                        <include name="org/jadice/web/icn/plugin/WebContent/**/*"/>
                                     </fileset>
                                 </copy>
 

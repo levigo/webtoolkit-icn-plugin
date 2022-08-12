@@ -5,7 +5,7 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
     function (declare, _TemplatedMixin, _WidgetsInTemplateMixin,
               PluginConfigurationPane, template) {
 
-        return declare("jWTPluginDojo.ConfigurationPane", [
+        return declare("JwtPluginDojo.ConfigurationPane", [
                 PluginConfigurationPane, _TemplatedMixin, _WidgetsInTemplateMixin],
             {
 

@@ -157,10 +157,7 @@ public class JWTViewerPluginService extends PluginService {
             }
         }
         // Display the JWT-viewer in the iframe
-        String requestURL = request.getRequestURL().toString();
-        String jwtContextPath = jwtServerURI.substring(jwtServerURI.lastIndexOf("/") + 1);
-        String jwtUserEndpoint = requestURL.substring(0, requestURL.indexOf(request.getContextPath())) + "/" + jwtContextPath;
-        this.sendViewerIFrame(response, jwtUserEndpoint, docGeneratedId, renderQuality);
+        this.sendViewerIFrame(response, jwtServerURI, docGeneratedId, renderQuality);
     }
 
     /**
