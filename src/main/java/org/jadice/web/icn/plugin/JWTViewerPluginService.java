@@ -16,6 +16,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Enumeration;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
@@ -75,12 +76,16 @@ public class JWTViewerPluginService extends PluginService {
     public void execute(PluginServiceCallbacks callbacks, HttpServletRequest request, HttpServletResponse response) {
         // Get JWT endpoint from configuration
         String jwtServerURI;
-        String icnServerURI;
         String renderQuality;
+        String p8Uri;
+        String p8User;
+        String p8Password;
         try {
             jwtServerURI = (String) JSONObject.parse(callbacks.loadConfiguration()).get("jwtServerURI");
-            icnServerURI = (String) JSONObject.parse(callbacks.loadConfiguration()).get("icnServerURI");
             renderQuality = (String) JSONObject.parse(callbacks.loadConfiguration()).get("renderQuality");
+            p8Uri = (String) JSONObject.parse(callbacks.loadConfiguration()).get("p8Uri");
+            p8User = (String) JSONObject.parse(callbacks.loadConfiguration()).get("p8User");
+            p8Password = (String) JSONObject.parse(callbacks.loadConfiguration()).get("p8Password");
         } catch (final Exception e) {
             Logger.logError(this, "execute", "Couldn't load the configuration. ", e);
             this.sendErrorIFrame(response, "Couldn't load the configuration.");
@@ -91,20 +96,42 @@ public class JWTViewerPluginService extends PluginService {
             this.sendErrorIFrame(response, "jadice web toolkit server url not configured");
             return;
         }
-        if (icnServerURI == null) {
-            Logger.logError(this, "execute", request, "ICN server url not configured");
-            this.sendErrorIFrame(response, "ICN server url not configured");
-            return;
-        }
         // this is the URL for the REST-Endpoint of CN to receive the document
         final String docUrlString = request.getParameter("docUrl");
         Logger.logDebug(this, "execute", request,
                 "Downloading the following Document from ICN: " + docUrlString);
         URL docUrl = null;
         try {
-            docUrl = new URL(new URL(icnServerURI), docUrlString);
+            docUrl = new URL(new URL(request.getRequestURL().toString()), docUrlString);
         } catch (MalformedURLException malformedURLException) {
             Logger.logError(this, "execute", "MalformedURLException. ", malformedURLException);
+        }
+        // Example of request parameters
+        // plugin: JWTPlugin
+        // action: jwtViewerPluginService
+        // docUrl: /navigator/jaxrs/p8/getDocument?docid=Document%2C%7B0BB25229-CD00-4A03-B374-AAD214ACC365%7D%2C%7BA853C638-2A0A-4D67-82CC-4E360A43F03B%7D&template_name=Document&repositoryId=P8Repository&vsId=%7B60A7AE78-0000-C714-9EE8-8F6D7DF7BFF0%7D&objectStoreName=P8ObjectStore&security_token=-3642916214142016050
+        // contentType: application/pdf
+        // docId: Document,{0BB25229-CD00-4A03-B374-AAD214ACC365},{A853C638-2A0A-4D67-82CC-4E360A43F03B}
+        // targetContentType: application/pdf
+        // serverType: p8
+        // printDoc: true
+        // exportDoc: true
+        // viewAnnotations: true
+        // editAnnotations: true
+        // editDoc: true
+        // editProperties: true
+        // security_token: -3642916214142016050
+        // desktop: jadice
+
+        String p8Id = null;
+        String viewAnnotations = request.getParameter("viewAnnotations");
+        String editAnnotations = request.getParameter("editAnnotations");
+        String serverType = request.getParameter("serverType");
+        if ("p8".equalsIgnoreCase(serverType) && "true".equals(viewAnnotations) && "true".equals(editAnnotations)) {
+            // Only transfer the P8-ID to jadice if it is allowed to view and edit annotations
+            // if that is set to false, we don't transfer the ID so jadice won't be able to
+            // load the annotations as the ID is missing
+            p8Id = request.getParameter("docId");
         }
 
         // Copy the cookies so the call is authenticated
@@ -133,7 +160,20 @@ public class JWTViewerPluginService extends PluginService {
             docStream = docConnection.getInputStream();
             try {
                 // Send it to JWT
-                docGeneratedId = sendPost(jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_DOCUMENT_URL, docStream, request);
+                String url = jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_DOCUMENT_URL;
+                if (p8Id != null) {
+                    String p8Encoded = URLEncoder.encode(p8Id, StandardCharsets.UTF_8.toString());
+                    url += "?p8Id=" + p8Encoded;
+                    if (p8Uri != null && p8User != null && p8Password != null) {
+                        String userEncoded = URLEncoder.encode(p8User, StandardCharsets.UTF_8.toString());
+                        String passwordEncoded = URLEncoder.encode(p8Password, StandardCharsets.UTF_8.toString());
+                        String uriEncoded = URLEncoder.encode(p8Uri, StandardCharsets.UTF_8.toString());
+                        url += "&p8Uri=" + uriEncoded;
+                        url += "&p8User=" + userEncoded;
+                        url += "&p8Password=" + passwordEncoded;
+                    }
+                }
+                docGeneratedId = sendPost(url, docStream, request);
                 assert !docGeneratedId.isEmpty();
                 Logger.logDebug(this, "execute", request,
                         "Got the following ID from jadice: " + docGeneratedId);
@@ -174,7 +214,7 @@ public class JWTViewerPluginService extends PluginService {
         try {
             response.setContentType("text/html; charset=utf-8");
             StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append("<html><body>");
+            stringBuilder.append("<html lang='en'><body>");
             stringBuilder.append("<p>Loading jadice web toolkit...</p>");
             stringBuilder.append("<script>location.href = '");
             stringBuilder.append(jwtEndpointUrl);

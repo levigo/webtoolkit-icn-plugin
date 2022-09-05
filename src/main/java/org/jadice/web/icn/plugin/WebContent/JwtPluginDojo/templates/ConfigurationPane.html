@@ -12,25 +12,11 @@
 					data-dojo-attach-event="onKeyUp: _onFieldChange"
 					data-dojo-type="ecm.widget.ValidationTextBox" required="true"
 					trim="true" propercase="false"></div>
-			</td>	
-		</tr>
-		<tr>
-			<td class="propertyRowLabel"><span class="required">*</span> <label
-				for="${id}_icnServerURI"><i>Content Navigator</i> server URL:</label>&nbsp;
-				<div data-dojo-type="ecm.widget.HoverHelp"
-					data-dojo-attach-point="icnServerURIHoverHelp"
-					message="Specify the server url of the Content Navigator. This endpoint is accessed from Content Navigator itself to retrieve the document. Required is the host WITHOUT context path. Example: http://myicn-server:9081"></div>
-			</td>
-			<td class="propertyRowValue">
-				<div id="${id}_icnServerURI" data-dojo-attach-point="icnServerURI"
-					data-dojo-attach-event="onKeyUp: _onFieldChange"
-					data-dojo-type="ecm.widget.ValidationTextBox" required="true"
-					trim="true" propercase="false"></div>
 			</td>
 		</tr>
 		<tr>
 			<td class="propertyRowLabel"><label
-				for="${id}_renderQuality">render quality (between 0 and 100):</label>&nbsp;
+				for="${id}_renderQuality">Render quality (between 0 and 100%):</label>&nbsp;
 				<div data-dojo-type="ecm.widget.HoverHelp"
 					data-dojo-attach-point="renderQualityHoverHelp"
 					message="Specify the render quality in percent."></div>
@@ -40,6 +26,55 @@
 					data-dojo-attach-event="onKeyUp: _onFieldChange"
 					data-dojo-type="ecm.widget.ValidationTextBox" required="false"
 					trim="true" propercase="false"></div>
+			</td>
+		</tr>
+		<tr>
+			<td class="propertyRowLabel" colspan="2">
+				<p>If you want to be able to save annotations you have to configure access to the repository. This
+					functionality is only available for <strong>P8</strong> repositories.</p>
+				<p>Alternatively to provide credentials here, they can be configured in the jadice web toolkit.</p>
+			</td>
+		</tr>
+		<tr>
+			<td class="propertyRowLabel"><label
+					for="${id}_p8Uri">P8 URI:</label>&nbsp;
+				<div data-dojo-type="ecm.widget.HoverHelp"
+					 data-dojo-attach-point="p8UriHoverHelp"
+					 message="Example: http://ecm.example.com:9080/wsi/FNCEWS40MTOM/"></div>
+			</td>
+			<td class="propertyRowValue">
+				<div id="${id}_p8Uri" data-dojo-attach-point="p8Uri"
+					 data-dojo-attach-event="onKeyUp: _onFieldChange"
+					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
+					 trim="true" propercase="false"></div>
+			</td>
+		</tr>
+		<tr>
+			<td class="propertyRowLabel"><label
+					for="${id}_p8User">P8 User:</label>&nbsp;
+				<div data-dojo-type="ecm.widget.HoverHelp"
+					 data-dojo-attach-point="p8UserHoverHelp"
+					 message="User that is used to store data to P8"></div>
+			</td>
+			<td class="propertyRowValue">
+				<div id="${id}_p8User" data-dojo-attach-point="p8User"
+					 data-dojo-attach-event="onKeyUp: _onFieldChange"
+					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
+					 trim="true" propercase="false"></div>
+			</td>
+		</tr>
+		<tr>
+			<td class="propertyRowLabel"><label
+					for="${id}_p8Password">P8 Password:</label>&nbsp;
+				<div data-dojo-type="ecm.widget.HoverHelp"
+					 data-dojo-attach-point="p8PasswordHoverHelp"
+					 message="Password for the user that is used to store data to P8"></div>
+			</td>
+			<td class="propertyRowValue">
+				<div id="${id}_p8Password" data-dojo-attach-point="p8Password"
+					 data-dojo-attach-event="onKeyUp: _onFieldChange"
+					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
+					 trim="true" propercase="false"></div>
 			</td>
 		</tr>
 	</table>
