@@ -1,8 +1,9 @@
 define(["dojo/_base/declare", "dijit/_TemplatedMixin",
         "dijit/_WidgetsInTemplateMixin",
+        "dijit/form/CheckBox",
         "ecm/widget/admin/PluginConfigurationPane",
         "dojo/text!./templates/ConfigurationPane.html"],
-    function (declare, _TemplatedMixin, _WidgetsInTemplateMixin,
+    function (declare, _TemplatedMixin, _WidgetsInTemplateMixin, CheckBox,
               PluginConfigurationPane, template) {
 
         return declare("JwtPluginDojo.ConfigurationPane", [
@@ -19,6 +20,7 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                         this.jwtServerURI.set("value", jsonConfig.jwtServerURI);
                         this.renderQuality.set("value", jsonConfig.renderQuality);
                         this.icnServerURI.set('value', jsonConfig.icnServerURI);
+                        this.p8AnnotationsEnabled.set("checked", jsonConfig.p8AnnotationsEnabled === true);
                         console.log("JWT Server URL: " + jsonConfig.jwtServerURI);
                         console.log("Render-Quality " + jsonConfig.renderQuality);
                     } else {
@@ -40,7 +42,8 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                     var configJson = {
                         "jwtServerURI": this.jwtServerURI.get("value"),
                         "renderQuality": this.renderQuality.get("value"),
-                        "icnServerURI": this.icnServerURI.get("value")
+                        "icnServerURI": this.icnServerURI.get("value"),
+                        "p8AnnotationsEnabled": this.p8AnnotationsEnabled.get("checked") === true
                     };
                     this.configurationString = JSON.stringify(configJson);
                     this.onSaveNeeded(true);

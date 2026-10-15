@@ -13,7 +13,6 @@ Below is a small list with features of the jadice web toolkit viewer
 | P8 Annotations (write)         | :heavy_check_mark: |
 | Filenet IS Annotations (read)  | :heavy_check_mark: |
 | Extensibility                  | :star: :star: :star: |
-| configurable render quality    | :heavy_check_mark: |
 | viewer can be used outside ICN | :heavy_check_mark: |
 | OCR layer support              | :heavy_check_mark: |
 | Javascript API for viewer      | :heavy_check_mark: |
@@ -83,22 +82,31 @@ server {
 ### Configuring write support for annotations
 
 Since version 1.2.0 of the plugin, it is possible to persist changes made to a document. The annotations are directly
-stored to the P8 repository by the jadice web toolkit. The P8 connection (`webtoolkit.icn.p8.uri`, `.domain`, `.user`,
-`.password`, `.os`) is configured in the `application.yml` of the jadice web toolkit. The plugin itself holds no
-P8 credentials and only transfers the document and its P8 object id.
+stored to the P8 repository by the jadice web toolkit. Enable **"Load and save P8 annotations via jadice"** in the
+plugin configuration (off by default); the plugin then hands the P8 object id to jadice and opens the document via
+`icn://`, which requires `webtoolkit-content-navigator-integration` and the P8 connection (`webtoolkit.icn.p8.uri`,
+`.domain`, `.user`, `.password`, `.os`) in the `application.yml` of the jadice web toolkit. With the option disabled,
+documents are opened via `upload://` and only displayed. The plugin itself holds no P8 credentials.
 
 ## Integration
 
-### jadice web toolkit content navigator standalone viewer
+### How the plugin talks to jadice web toolkit
 
-The standalone viewer is ready-to-use and can directly be used as a viewer for the Content Navigator. It is an optimized version of the **enterprise demo** that is part of the jadice web toolkit artifact.
+1. The plugin (running inside the Content Navigator server) downloads the document from ICN and posts it as
+   `multipart/form-data` to `<jadice web toolkit URL>/upload` (endpoint of the `webtoolkit-addon-upload` module).
+   For P8 repositories the form field `metaMapFlat` carries `p8Id=<objectStoreId>,<documentId>`.
+2. The response is an upload id. The plugin opens the viewer in an iframe with the generic source parameter
+   `?u={"uri":"icn://<uploadId>"}` (URL-encoded). For non-P8 documents, or when the user may not edit annotations,
+   the plain `upload://<uploadId>` is used instead, so the ICN integration module is only needed for P8 annotations.
 
-1. deploy the webtoolkit-content-navigator-integration WAR-file to the same application server as the Content Navigator. This is mandatory as the Content Navigator enforces same-origin-policy
-2. deploy the WAR-file with the context path "webtoolkit" so that it is reachable via e.g. http://myicnhost/webtoolkit (where Content Navigator is accessible via http://myicnhost/navigator )
+No P8 credentials are transferred. Upload limits are those of the jadice web toolkit server
+(`spring.servlet.multipart.max-file-size`). The `/upload` endpoint is unauthenticated; restrict it to the ICN server
+at network or reverse-proxy level.
 
-### existing jadice web toolkit integration
+### jadice web toolkit integration
 
-If you already have a running jadice web toolkit installation, you can use the following module to extend the integration, so it can communicate with the webtoolkit-icn-plugin
+Your jadice web toolkit installation needs the following module (it pulls in `webtoolkit-p8-integration` and
+`webtoolkit-addon-upload`), so it can serve the documents transferred by the webtoolkit-icn-plugin
 
 ```xml
 <dependency>

@@ -43,6 +43,19 @@
 			</td>
 		</tr>
 		<tr>
+			<td class="propertyRowLabel"><label
+					for="${id}_p8AnnotationsEnabled">Load and save P8 annotations via jadice:</label>&nbsp;
+				<div data-dojo-type="ecm.widget.HoverHelp"
+					 data-dojo-attach-point="p8AnnotationsEnabledHoverHelp"
+					 message="When enabled, the P8 object id is handed to jadice web toolkit so it can read the FileNet annotations and write them back. Requires the ICN integration module (webtoolkit-content-navigator-integration) and the P8 connection (webtoolkit.icn.p8.*) on the jadice web toolkit server. When disabled, documents are only displayed."></div>
+			</td>
+			<td class="propertyRowValue">
+				<div id="${id}_p8AnnotationsEnabled" data-dojo-attach-point="p8AnnotationsEnabled"
+					 data-dojo-attach-event="onChange: _onFieldChange"
+					 data-dojo-type="dijit.form.CheckBox"></div>
+			</td>
+		</tr>
+		<tr>
 			<td class="propertyRowLabel" colspan="2">
 				<p>Saving annotations is only available for <strong>P8</strong> repositories. The P8 connection
 					(URI, user, password, object store) is configured in the jadice web toolkit

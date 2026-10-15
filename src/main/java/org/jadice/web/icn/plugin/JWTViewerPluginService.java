@@ -15,6 +15,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 
@@ -39,7 +40,10 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class JWTViewerPluginService extends PluginService {
 
-    private final static String JWT_DOCUMENT_URL = "jwt/documentupload";
+    /** Upload endpoint of the jadice web toolkit addon-upload module (relative to the configured server URL). */
+    private final static String JWT_UPLOAD_PATH = "upload";
+    /** Prefix of the ICN document id that is stripped before the P8 ids are handed to jadice. */
+    private final static String ICN_DOCUMENT_ID_PREFIX = "Document,";
 
     /**
      * Returns the unique identifier for this service.
@@ -78,11 +82,13 @@ public class JWTViewerPluginService extends PluginService {
         String jwtServerURI;
         String renderQuality;
         String icnServerURI;
+        boolean p8AnnotationsEnabled;
         try {
             JSONObject configuration = JSONObject.parse(callbacks.loadConfiguration());
             jwtServerURI = (String) configuration.get("jwtServerURI");
             icnServerURI = (String) configuration.get("icnServerURI");
             renderQuality = (String) configuration.get("renderQuality");
+            p8AnnotationsEnabled = Boolean.TRUE.equals(configuration.get("p8AnnotationsEnabled"));
         } catch (final Exception e) {
             Logger.logError(this, "execute", "Couldn't load the configuration. ", e);
             this.sendErrorIFrame(response, "Couldn't load the configuration.");
@@ -122,14 +128,22 @@ public class JWTViewerPluginService extends PluginService {
         // desktop: jadice
 
         String p8Id = null;
+        String contentType = request.getParameter("contentType");
         String viewAnnotations = request.getParameter("viewAnnotations");
         String editAnnotations = request.getParameter("editAnnotations");
         String serverType = request.getParameter("serverType");
-        if ("p8".equalsIgnoreCase(serverType) && "true".equals(viewAnnotations) && "true".equals(editAnnotations)) {
+        // The P8 id is only handed over when the admin enabled P8 annotations in the plugin configuration;
+        // with it, jadice loads the document via icn:// (reads/writes FileNet annotations), without it via
+        // upload:// (display only, no ICN integration module needed on the jadice side).
+        if (p8AnnotationsEnabled && "p8".equalsIgnoreCase(serverType) && "true".equals(viewAnnotations)
+                && "true".equals(editAnnotations)) {
             // Only transfer the P8-ID to jadice if it is allowed to view and edit annotations
             // if that is set to false, we don't transfer the ID so jadice won't be able to
             // load the annotations as the ID is missing
             p8Id = request.getParameter("docId");
+            if (p8Id != null && p8Id.startsWith(ICN_DOCUMENT_ID_PREFIX)) {
+                p8Id = p8Id.substring(ICN_DOCUMENT_ID_PREFIX.length());
+            }
         }
 
         // Copy the cookies so the call is authenticated
@@ -157,15 +171,11 @@ public class JWTViewerPluginService extends PluginService {
             docConnection.setRequestProperty("COOKIE", cookieProperty.toString());
             docStream = docConnection.getInputStream();
             try {
-                // Send it to JWT
-                String url = jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_DOCUMENT_URL;
-                // Only the P8 object id is transferred. P8 credentials are configured in the
-                // jadice web toolkit (webtoolkit.icn.p8.*) and never leave it.
-                if (p8Id != null) {
-                    String p8Encoded = URLEncoder.encode(p8Id, StandardCharsets.UTF_8.toString());
-                    url += "?p8Id=" + p8Encoded;
-                }
-                docGeneratedId = sendPost(url, docStream, request);
+                // Send it to JWT (addon-upload, multipart). Only the P8 object id travels as meta
+                // property; P8 credentials are configured in the jadice web toolkit
+                // (webtoolkit.icn.p8.*) and never leave it.
+                String url = jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_UPLOAD_PATH;
+                docGeneratedId = sendMultipartPost(url, docStream, contentType, p8Id, request);
                 assert !docGeneratedId.isEmpty();
                 Logger.logDebug(this, "execute", request,
                         "Got the following ID from jadice: " + docGeneratedId);
@@ -189,40 +199,38 @@ public class JWTViewerPluginService extends PluginService {
             }
         }
         // Display the JWT-viewer in the iframe
-        this.sendViewerIFrame(response, jwtServerURI, docGeneratedId, renderQuality);
+        this.sendViewerIFrame(response, jwtServerURI, docGeneratedId, p8Id != null);
     }
 
     /**
-     * Sends the IFrames' content to the client via the given
-     * {@link HttpServletResponse}. This includes a call to the <i>jadice web
-     * toolkit</i> instance as a REST request.
+     * Sends the IFrames' content to the client: a redirect to the viewer with the document source as
+     * {@code ?u=} parameter (JSON {@code {"uri": "<scheme>://<uploadId>"}}), the same parameter the viewer
+     * accepts for any other URI source.
      *
      * @param response       The response stream.
-     * @param jwtEndpointUrl The URI pointing to the <i>jadice webtool kit</i> instance.
-     * @param token          The token identifying the the document.
-     * @param renderQuality  The render-quality for web-toolkit
+     * @param jwtEndpointUrl The URI pointing to the <i>jadice web viewer</i> instance.
+     * @param uploadId       The id returned by the upload endpoint.
+     * @param p8Document     {@code true} when the document lives in P8 and annotations are to be read/written;
+     *                       the viewer then loads {@code icn://} (needs the ICN integration on the server),
+     *                       otherwise plain {@code upload://}.
      */
-    private void sendViewerIFrame(HttpServletResponse response, String jwtEndpointUrl, String token, String renderQuality) {
+    private void sendViewerIFrame(HttpServletResponse response, String jwtEndpointUrl, String uploadId, boolean p8Document) {
         try {
+            JSONObject source = new JSONObject();
+            source.put("uri", (p8Document ? "icn://" : "upload://") + uploadId);
             response.setContentType("text/html; charset=utf-8");
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.append("<html lang='en'><body>");
-            stringBuilder.append("<p>Loading jadice web toolkit...</p>");
+            stringBuilder.append("<p>Loading jadice web viewer...</p>");
             stringBuilder.append("<script>location.href = '");
             stringBuilder.append(jwtEndpointUrl);
-            stringBuilder.append("?connection=longpoll&");
-            if (renderQuality != null && !"".equals(renderQuality)) {
-                stringBuilder.append("quality=");
-                stringBuilder.append(renderQuality);
-                stringBuilder.append("&");
-            }
-            stringBuilder.append("t=");
-            stringBuilder.append(URLEncoder.encode(token, "UTF-8"));
+            stringBuilder.append("?connection=longpoll&u=");
+            stringBuilder.append(URLEncoder.encode(source.serialize(), "UTF-8"));
             stringBuilder.append("';</script>");
             stringBuilder.append("</body></html>");
             response.getOutputStream().write(stringBuilder.toString().getBytes(StandardCharsets.UTF_8));
         } catch (final IOException e) {
-            Logger.logError(this, "execute", "Failed to get the PrintWriter from the HttpServletResponse.", e);
+            Logger.logError(this, "execute", "Failed to write the viewer redirect to the HttpServletResponse.", e);
         }
     }
 
@@ -245,37 +253,62 @@ public class JWTViewerPluginService extends PluginService {
     }
 
     /**
-     * Takes the data from the inputStream and transfers it via HTTP-POST to the url
+     * Uploads the document as {@code multipart/form-data} to the addon-upload endpoint of jadice web toolkit.
+     * Form fields: {@code metaMapFlat} ({@code p8Id=<objectStoreId>,<documentId>}, only when present) and
+     * {@code file} (the document bytes).
      *
-     * @param url         the url to send the data to
-     * @param inputStream the input-stream to copy the data from
-     * @return the response of the POST-request
+     * @param url         the upload endpoint
+     * @param inputStream the document content
+     * @param contentType MIME type of the document as reported by ICN, may be {@code null}
+     * @param p8Id        {@code <objectStoreId>,<documentId>} or {@code null}
+     * @return the upload id returned by jadice web toolkit
      */
-    private String sendPost(String url, InputStream inputStream, HttpServletRequest request) throws Exception {
+    private String sendMultipartPost(String url, InputStream inputStream, String contentType, String p8Id,
+                                     HttpServletRequest request) throws Exception {
+        String boundary = "----jwt-icn-" + UUID.randomUUID();
         HttpURLConnection httpClient = (HttpURLConnection) new URL(url).openConnection();
         httpClient.setRequestMethod("POST");
-
+        httpClient.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
         httpClient.setDoOutput(true);
+        httpClient.setChunkedStreamingMode(64 * 1024);
+
         int readBytes = 0;
         try (DataOutputStream target = new DataOutputStream(httpClient.getOutputStream())) {
+            if (p8Id != null) {
+                writeAscii(target, "--" + boundary + "\r\n"
+                        + "Content-Disposition: form-data; name=\"metaMapFlat\"\r\n\r\n"
+                        + "p8Id=" + p8Id + "\r\n");
+            }
+            writeAscii(target, "--" + boundary + "\r\n"
+                    + "Content-Disposition: form-data; name=\"file\"; filename=\"document\"\r\n"
+                    + "Content-Type: " + (contentType != null ? contentType : "application/octet-stream") + "\r\n\r\n");
             byte[] buf = new byte[8192];
             int length;
             while ((length = inputStream.read(buf)) > 0) {
                 target.write(buf, 0, length);
                 readBytes += length;
             }
+            writeAscii(target, "\r\n--" + boundary + "--\r\n");
             target.flush();
         }
-        Logger.logDebug(this, "sendPost", request, "Transferred " + readBytes + "bytes to jadice");
+        Logger.logDebug(this, "sendMultipartPost", request, "Transferred " + readBytes + " bytes to jadice");
 
+        int status = httpClient.getResponseCode();
+        if (status != HttpURLConnection.HTTP_OK) {
+            throw new IOException("Upload to jadice web toolkit failed with HTTP " + status);
+        }
         StringBuilder response = new StringBuilder();
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(httpClient.getInputStream()))) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(httpClient.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = in.readLine()) != null) {
                 response.append(line);
             }
         }
-        return response.toString();
+        return response.toString().trim();
+    }
+
+    private static void writeAscii(DataOutputStream target, String text) throws IOException {
+        target.write(text.getBytes(StandardCharsets.US_ASCII));
     }
 
 }
