@@ -44,51 +44,9 @@
 		</tr>
 		<tr>
 			<td class="propertyRowLabel" colspan="2">
-				<p>If you want to be able to save annotations you have to configure access to the repository. This
-					functionality is only available for <strong>P8</strong> repositories.</p>
-				<p>Alternatively to provide credentials here, they can be configured in the jadice web toolkit.</p>
-			</td>
-		</tr>
-		<tr>
-			<td class="propertyRowLabel"><label
-					for="${id}_p8Uri">P8 URI:</label>&nbsp;
-				<div data-dojo-type="ecm.widget.HoverHelp"
-					 data-dojo-attach-point="p8UriHoverHelp"
-					 message="Example: http://ecm.example.com:9080/wsi/FNCEWS40MTOM/"></div>
-			</td>
-			<td class="propertyRowValue">
-				<div id="${id}_p8Uri" data-dojo-attach-point="p8Uri"
-					 data-dojo-attach-event="onKeyUp: _onFieldChange"
-					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
-					 trim="true" propercase="false"></div>
-			</td>
-		</tr>
-		<tr>
-			<td class="propertyRowLabel"><label
-					for="${id}_p8User">P8 User:</label>&nbsp;
-				<div data-dojo-type="ecm.widget.HoverHelp"
-					 data-dojo-attach-point="p8UserHoverHelp"
-					 message="User that is used to store data to P8"></div>
-			</td>
-			<td class="propertyRowValue">
-				<div id="${id}_p8User" data-dojo-attach-point="p8User"
-					 data-dojo-attach-event="onKeyUp: _onFieldChange"
-					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
-					 trim="true" propercase="false"></div>
-			</td>
-		</tr>
-		<tr>
-			<td class="propertyRowLabel"><label
-					for="${id}_p8Password">P8 Password:</label>&nbsp;
-				<div data-dojo-type="ecm.widget.HoverHelp"
-					 data-dojo-attach-point="p8PasswordHoverHelp"
-					 message="Password for the user that is used to store data to P8"></div>
-			</td>
-			<td class="propertyRowValue">
-				<div id="${id}_p8Password" data-dojo-attach-point="p8Password"
-					 data-dojo-attach-event="onKeyUp: _onFieldChange"
-					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
-					 trim="true" propercase="false" type="password"></div>
+				<p>Saving annotations is only available for <strong>P8</strong> repositories. The P8 connection
+					(URI, user, password, object store) is configured in the jadice web toolkit
+					(<code>webtoolkit.icn.p8.*</code> in its <code>application.yml</code>), not here.</p>
 			</td>
 		</tr>
 	</table>

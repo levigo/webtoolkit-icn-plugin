@@ -83,7 +83,9 @@ server {
 ### Configuring write support for annotations
 
 Since version 1.2.0 of the plugin, it is possible to persist changes made to a document. The annotations are directly
-stored to the P8 repository. All you have to do is configure the plugin in the admin panel accordingly.
+stored to the P8 repository by the jadice web toolkit. The P8 connection (`webtoolkit.icn.p8.uri`, `.domain`, `.user`,
+`.password`, `.os`) is configured in the `application.yml` of the jadice web toolkit. The plugin itself holds no
+P8 credentials and only transfers the document and its P8 object id.
 
 ## Integration
 

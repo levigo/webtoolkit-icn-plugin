@@ -77,17 +77,12 @@ public class JWTViewerPluginService extends PluginService {
         // Get JWT endpoint from configuration
         String jwtServerURI;
         String renderQuality;
-        String p8Uri;
-        String p8User;
-        String p8Password;
         String icnServerURI;
         try {
-            jwtServerURI = (String) JSONObject.parse(callbacks.loadConfiguration()).get("jwtServerURI");
-            icnServerURI = (String) JSONObject.parse(callbacks.loadConfiguration()).get("icnServerURI");
-            renderQuality = (String) JSONObject.parse(callbacks.loadConfiguration()).get("renderQuality");
-            p8Uri = (String) JSONObject.parse(callbacks.loadConfiguration()).get("p8Uri");
-            p8User = (String) JSONObject.parse(callbacks.loadConfiguration()).get("p8User");
-            p8Password = (String) JSONObject.parse(callbacks.loadConfiguration()).get("p8Password");
+            JSONObject configuration = JSONObject.parse(callbacks.loadConfiguration());
+            jwtServerURI = (String) configuration.get("jwtServerURI");
+            icnServerURI = (String) configuration.get("icnServerURI");
+            renderQuality = (String) configuration.get("renderQuality");
         } catch (final Exception e) {
             Logger.logError(this, "execute", "Couldn't load the configuration. ", e);
             this.sendErrorIFrame(response, "Couldn't load the configuration.");
@@ -164,17 +159,11 @@ public class JWTViewerPluginService extends PluginService {
             try {
                 // Send it to JWT
                 String url = jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_DOCUMENT_URL;
+                // Only the P8 object id is transferred. P8 credentials are configured in the
+                // jadice web toolkit (webtoolkit.icn.p8.*) and never leave it.
                 if (p8Id != null) {
                     String p8Encoded = URLEncoder.encode(p8Id, StandardCharsets.UTF_8.toString());
                     url += "?p8Id=" + p8Encoded;
-                    if (p8Uri != null && p8User != null && p8Password != null) {
-                        String userEncoded = URLEncoder.encode(p8User, StandardCharsets.UTF_8.toString());
-                        String passwordEncoded = URLEncoder.encode(p8Password, StandardCharsets.UTF_8.toString());
-                        String uriEncoded = URLEncoder.encode(p8Uri, StandardCharsets.UTF_8.toString());
-                        url += "&p8Uri=" + uriEncoded;
-                        url += "&p8User=" + userEncoded;
-                        url += "&p8Password=" + passwordEncoded;
-                    }
                 }
                 docGeneratedId = sendPost(url, docStream, request);
                 assert !docGeneratedId.isEmpty();

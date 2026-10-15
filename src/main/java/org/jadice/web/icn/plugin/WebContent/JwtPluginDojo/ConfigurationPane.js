@@ -19,9 +19,6 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                         this.jwtServerURI.set("value", jsonConfig.jwtServerURI);
                         this.renderQuality.set("value", jsonConfig.renderQuality);
                         this.icnServerURI.set('value', jsonConfig.icnServerURI);
-                        this.p8Uri.set("value", jsonConfig.p8Uri);
-                        this.p8User.set("value", jsonConfig.p8User);
-                        this.p8Password.set("value", jsonConfig.p8Password);
                         console.log("JWT Server URL: " + jsonConfig.jwtServerURI);
                         console.log("Render-Quality " + jsonConfig.renderQuality);
                     } else {
@@ -43,10 +40,7 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                     var configJson = {
                         "jwtServerURI": this.jwtServerURI.get("value"),
                         "renderQuality": this.renderQuality.get("value"),
-                        "icnServerURI": this.icnServerURI.get("value"),
-                        "p8Uri": this.p8Uri.get("value"),
-                        "p8User": this.p8User.get("value"),
-                        "p8Password": this.p8Password.get("value")
+                        "icnServerURI": this.icnServerURI.get("value")
                     };
                     this.configurationString = JSON.stringify(configJson);
                     this.onSaveNeeded(true);
