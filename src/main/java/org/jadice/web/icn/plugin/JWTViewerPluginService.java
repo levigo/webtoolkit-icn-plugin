@@ -224,7 +224,7 @@ public class JWTViewerPluginService extends PluginService {
             stringBuilder.append("<p>Loading jadice web viewer...</p>");
             stringBuilder.append("<script>location.href = '");
             stringBuilder.append(jwtEndpointUrl);
-            stringBuilder.append("?connection=longpoll&u=");
+            stringBuilder.append("?connection=longpoll&theme=icn&u=");
             stringBuilder.append(URLEncoder.encode(source.serialize(), "UTF-8"));
             stringBuilder.append("';</script>");
             stringBuilder.append("</body></html>");
