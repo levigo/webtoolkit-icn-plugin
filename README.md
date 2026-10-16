@@ -102,10 +102,12 @@ P8 object store and document id plus the user's annotation edit right and opens 
 P8 with its technical user, and any instance behind a load balancer can serve it. Requires
 `webtoolkit-content-navigator-integration` and the P8 connection on the jadice web toolkit side.
 
-Security note for token mode: the plugin signs the document id and the annotation privileges as the browser sends
-them to the plugin service; it does not re-check them against ICN before signing. Until that is added, treat every
-ICN user as able to open any P8 document the technical user can read. Keep the secret out of logs and the ICN
-configuration export.
+Security note for token mode: before signing, the plugin fetches the document through Content Navigator in the
+user's own security context (`PluginServiceCallbacks.getP8Document`), so a user can only obtain tokens for documents
+they may read, and the ids in the token come from that document, not from the request. The edit right in the token
+requires both ICN's `editAnnotations` privilege and the FileNet "Link/Annotate" right on the document. Keep the
+secret out of logs and the ICN configuration export. Building the plugin now needs the FileNet `Jace.jar` on the
+classpath (`provided`, see `pom.xml`); the Content Navigator runtime supplies it.
 
 **Upload mode (CM repositories, or P8 without a token secret):**
 

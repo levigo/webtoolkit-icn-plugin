@@ -26,6 +26,14 @@
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/navigatorAPI.jar</systemPath>
         </dependency>
+        <!-- FileNet P8 API, provided by the Content Navigator runtime; needed for the access check in token mode.
+             Never bundled: the Jace jar is licensed by IBM, take it from your FileNet installation. -->
+        <dependency>
+            <groupId>p8-client</groupId>
+            <artifactId>jace</artifactId>
+            <version>5.5.4.0</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>

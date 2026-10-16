@@ -153,16 +153,32 @@ public class JWTViewerPluginService extends PluginService {
         if (tokenMode) {
             // Token mode: no download, no upload. The signed token names the P8 document; jadice web toolkit
             // verifies it with the shared secret and reads content and annotations from P8 itself.
-            String[] ids = p8IdsOf(request.getParameter("docId"));
-            if (ids == null) {
-                Logger.logError(this, "execute", request, "Unexpected P8 document id: " + request.getParameter("docId"));
-                this.sendErrorIFrame(response, "Unexpected P8 document id");
+            // The ids and the edit right are NOT taken from the request parameters (the browser builds them):
+            // ICN fetches the document in the user's own security context, which proves read access, and the
+            // user's access mask on it decides whether annotating is allowed.
+            String docUrlForIds = request.getParameter("docUrl");
+            String repositoryId = IcnAccess.queryParam(docUrlForIds, "repositoryId");
+            String vsId = IcnAccess.queryParam(docUrlForIds, "vsId");
+            String rawDocId = request.getParameter("docId");
+            com.filenet.api.core.Document fetched;
+            try {
+                fetched = repositoryId == null || rawDocId == null ? null
+                        : callbacks.getP8Document(repositoryId, rawDocId, vsId == null ? "" : vsId, "");
+            } catch (Exception e) {
+                Logger.logError(this, "execute", request, "Access check for the P8 document failed", e);
+                fetched = null;
+            }
+            if (fetched == null) {
+                this.sendErrorIFrame(response, "Not authorized to open this document");
                 return;
             }
+            String objectStoreId = fetched.getObjectStore().get_Id().toString();
+            String documentId = fetched.getProperties().getIdValue(com.filenet.api.constants.PropertyNames.ID).toString();
             boolean writable = "true".equals(request.getParameter("viewAnnotations"))
-                    && "true".equals(request.getParameter("editAnnotations"));
+                    && "true".equals(request.getParameter("editAnnotations"))
+                    && IcnAccess.mayAnnotate(fetched.getAccessAllowed());
             long expiresAt = System.currentTimeMillis() / 1000L + tokenTtlMinutes * 60L;
-            String token = IcnToken.create(tokenSecret.trim(), ids[0], ids[1], writable, expiresAt);
+            String token = IcnToken.create(tokenSecret.trim(), objectStoreId, documentId, writable, expiresAt);
             this.sendViewerIFrame(response, jwtServerURI, token, true);
             return;
         }
