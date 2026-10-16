@@ -25,6 +25,15 @@ class IcnTokenTest {
     }
 
     @Test
+    void p8IdsAreTheLastTwoCommaSeparatedPartsOfTheIcnDocumentId() {
+        assertEquals("{OS}|{DOC}", String.join("|", JWTViewerPluginService.p8IdsOf("Document,{OS},{DOC}")));
+        assertEquals("{OS}|{DOC}", String.join("|", JWTViewerPluginService.p8IdsOf("Invoice,{OS},{DOC}")));
+        assertEquals("{OS}|{DOC}", String.join("|", JWTViewerPluginService.p8IdsOf("{OS},{DOC}")));
+        assertEquals(null, JWTViewerPluginService.p8IdsOf("{DOC}"));
+        assertEquals(null, JWTViewerPluginService.p8IdsOf(null));
+    }
+
+    @Test
     void escapesQuotesAndBackslashesInIds() {
         String token = IcnToken.create(SECRET, "a\"b", "c\\d", true, 1L);
         String payload = new String(java.util.Base64.getUrlDecoder().decode(token.split("\\.")[0]), java.nio.charset.StandardCharsets.UTF_8);

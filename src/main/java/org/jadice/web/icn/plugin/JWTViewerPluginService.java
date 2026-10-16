@@ -49,6 +49,23 @@ public class JWTViewerPluginService extends PluginService {
     private final static java.util.concurrent.atomic.AtomicBoolean TOKEN_SECRET_WARNED =
             new java.util.concurrent.atomic.AtomicBoolean();
 
+    /**
+     * ICN item ids look like {@code <className>,{objectStoreGuid},{documentGuid}}; the class name is
+     * {@code Document} for the base class and the custom class name otherwise.
+     *
+     * @return {@code {objectStoreId, documentId}} (the last two parts), or {@code null} when there are fewer
+     */
+    static String[] p8IdsOf(String docId) {
+        if (docId == null) {
+            return null;
+        }
+        String[] parts = docId.split(",");
+        if (parts.length < 2) {
+            return null;
+        }
+        return new String[]{parts[parts.length - 2].trim(), parts[parts.length - 1].trim()};
+    }
+
     private static String stripDocumentPrefix(String docId) {
         if (docId != null && docId.startsWith(ICN_DOCUMENT_ID_PREFIX)) {
             return docId.substring(ICN_DOCUMENT_ID_PREFIX.length());
@@ -136,10 +153,9 @@ public class JWTViewerPluginService extends PluginService {
         if (tokenMode) {
             // Token mode: no download, no upload. The signed token names the P8 document; jadice web toolkit
             // verifies it with the shared secret and reads content and annotations from P8 itself.
-            String docId = stripDocumentPrefix(request.getParameter("docId"));
-            String[] ids = docId == null ? null : docId.split(",");
-            if (ids == null || ids.length != 2) {
-                Logger.logError(this, "execute", request, "Unexpected P8 document id: " + docId);
+            String[] ids = p8IdsOf(request.getParameter("docId"));
+            if (ids == null) {
+                Logger.logError(this, "execute", request, "Unexpected P8 document id: " + request.getParameter("docId"));
                 this.sendErrorIFrame(response, "Unexpected P8 document id");
                 return;
             }
