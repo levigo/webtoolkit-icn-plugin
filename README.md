@@ -100,7 +100,9 @@ P8 with its technical user, and any instance behind a load balancer can serve it
 Security note for token mode: before signing, the plugin fetches the document through Content Navigator in the
 user's own security context (`PluginServiceCallbacks.getP8Document`), so a user can only obtain tokens for documents
 they may read, and the ids in the token come from that document, not from the request. The edit right in the token
-requires both ICN's `editAnnotations` privilege and the FileNet "Link/Annotate" right on the document. Keep the
+requires both ICN's `editAnnotations` privilege and the FileNet "Link/Annotate" right on the document. The token also
+carries the ICN user id (`sub`) so that jadice web toolkit can log who opened and annotated a document; it is used
+for logging only, never for access decisions. Keep the
 secret out of logs and the ICN configuration export. Building the plugin now needs the FileNet `Jace.jar` on the
 classpath (`provided`, see `pom.xml`); the Content Navigator runtime supplies it.
 

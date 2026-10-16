@@ -176,7 +176,8 @@ public class JWTViewerPluginService extends PluginService {
                     && "true".equals(request.getParameter("editAnnotations"))
                     && IcnAccess.mayAnnotate(fetched.getAccessAllowed());
             long expiresAt = System.currentTimeMillis() / 1000L + tokenTtlMinutes * 60L;
-            String token = IcnToken.create(tokenSecret.trim(), objectStoreId, documentId, writable, expiresAt);
+            String token = IcnToken.create(tokenSecret.trim(), objectStoreId, documentId, writable, expiresAt,
+                    callbacks.getUserId());
             this.sendViewerIFrame(response, jwtServerURI, token, true);
             return;
         }

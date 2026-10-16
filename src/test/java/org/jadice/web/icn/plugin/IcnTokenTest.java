@@ -18,6 +18,16 @@ class IcnTokenTest {
     }
 
     @Test
+    void carriesTheUserAsSubWhenGiven() {
+        String token = IcnToken.create(SECRET, "{OS}", "{DOC}", true, 1760616000L, "jdoe");
+        String payload = new String(java.util.Base64.getUrlDecoder().decode(token.split("\\.")[0]), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertEquals("{\"v\":1,\"os\":\"{OS}\",\"doc\":\"{DOC}\",\"w\":true,\"exp\":1760616000,\"sub\":\"jdoe\"}", payload);
+        assertEquals(EXPECTED, IcnToken.create(SECRET, "{OS}", "{DOC}", true, 1760616000L, null));
+        assertEquals(EXPECTED, IcnToken.create(SECRET, "{OS}", "{DOC}", true, 1760616000L, "  "));
+    }
+
+    @Test
     void isUrlSafeWithoutPadding() {
         String token = IcnToken.create(SECRET, "{OS}", "{DOC}", false, 1760616001L);
 
