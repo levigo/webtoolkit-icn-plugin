@@ -56,6 +56,34 @@
 			</td>
 		</tr>
 		<tr>
+			<td class="propertyRowLabel"><label
+					for="${id}_tokenSecret">Token secret:</label>&nbsp;
+				<div data-dojo-type="ecm.widget.HoverHelp"
+					 data-dojo-attach-point="tokenSecretHoverHelp"
+					 message="Shared secret (at least 32 characters) that is also configured as webtoolkit.icn.token.secret on the jadice web toolkit server. When set together with the P8 annotations option, P8 documents are opened with a signed token instead of being uploaded: no document transfer, works behind a load balancer. Leave empty to keep uploading documents."></div>
+			</td>
+			<td class="propertyRowValue">
+				<div id="${id}_tokenSecret" data-dojo-attach-point="tokenSecret"
+					 data-dojo-attach-event="onKeyUp: _onFieldChange"
+					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
+					 trim="true" propercase="false" type="password"></div>
+			</td>
+		</tr>
+		<tr>
+			<td class="propertyRowLabel"><label
+					for="${id}_tokenTtlMinutes">Token lifetime (minutes):</label>&nbsp;
+				<div data-dojo-type="ecm.widget.HoverHelp"
+					 data-dojo-attach-point="tokenTtlMinutesHoverHelp"
+					 message="How long a token opens the document for the first time. Default 480 (8 hours). A document that is already open stays available after expiry."></div>
+			</td>
+			<td class="propertyRowValue">
+				<div id="${id}_tokenTtlMinutes" data-dojo-attach-point="tokenTtlMinutes"
+					 data-dojo-attach-event="onKeyUp: _onFieldChange"
+					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
+					 trim="true" propercase="false"></div>
+			</td>
+		</tr>
+		<tr>
 			<td class="propertyRowLabel" colspan="2">
 				<p>Saving annotations is only available for <strong>P8</strong> repositories. The P8 connection
 					(URI, user, password, object store) is configured in the jadice web toolkit

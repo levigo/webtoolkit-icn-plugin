@@ -44,6 +44,29 @@ public class JWTViewerPluginService extends PluginService {
     private final static String JWT_UPLOAD_PATH = "upload";
     /** Prefix of the ICN document id that is stripped before the P8 ids are handed to jadice. */
     private final static String ICN_DOCUMENT_ID_PREFIX = "Document,";
+    /** Default lifetime of a token (first open) when the admin panel leaves the field empty. */
+    private final static long DEFAULT_TOKEN_TTL_MINUTES = 480L;
+    private final static java.util.concurrent.atomic.AtomicBoolean TOKEN_SECRET_WARNED =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    private static String stripDocumentPrefix(String docId) {
+        if (docId != null && docId.startsWith(ICN_DOCUMENT_ID_PREFIX)) {
+            return docId.substring(ICN_DOCUMENT_ID_PREFIX.length());
+        }
+        return docId;
+    }
+
+    private static long parseTtl(Object configured) {
+        if (configured == null) {
+            return DEFAULT_TOKEN_TTL_MINUTES;
+        }
+        try {
+            long ttl = Long.parseLong(String.valueOf(configured).trim());
+            return ttl > 0 ? ttl : DEFAULT_TOKEN_TTL_MINUTES;
+        } catch (NumberFormatException e) {
+            return DEFAULT_TOKEN_TTL_MINUTES;
+        }
+    }
 
     /**
      * Returns the unique identifier for this service.
@@ -83,12 +106,16 @@ public class JWTViewerPluginService extends PluginService {
         String renderQuality;
         String icnServerURI;
         boolean p8AnnotationsEnabled;
+        String tokenSecret;
+        long tokenTtlMinutes;
         try {
             JSONObject configuration = JSONObject.parse(callbacks.loadConfiguration());
             jwtServerURI = (String) configuration.get("jwtServerURI");
             icnServerURI = (String) configuration.get("icnServerURI");
             renderQuality = (String) configuration.get("renderQuality");
             p8AnnotationsEnabled = Boolean.TRUE.equals(configuration.get("p8AnnotationsEnabled"));
+            tokenSecret = (String) configuration.get("tokenSecret");
+            tokenTtlMinutes = parseTtl(configuration.get("tokenTtlMinutes"));
         } catch (final Exception e) {
             Logger.logError(this, "execute", "Couldn't load the configuration. ", e);
             this.sendErrorIFrame(response, "Couldn't load the configuration.");
@@ -99,6 +126,32 @@ public class JWTViewerPluginService extends PluginService {
             this.sendErrorIFrame(response, "jadice web toolkit server url not configured");
             return;
         }
+        String serverType = request.getParameter("serverType");
+        boolean p8Document = p8AnnotationsEnabled && "p8".equalsIgnoreCase(serverType);
+        boolean tokenMode = p8Document && tokenSecret != null && !tokenSecret.trim().isEmpty();
+        if (p8Document && !tokenMode && TOKEN_SECRET_WARNED.compareAndSet(false, true)) {
+            Logger.logWarning(this, "execute", request, "P8 annotations are enabled but no token secret is "
+                    + "configured; falling back to uploading the document (not cluster-safe)");
+        }
+        if (tokenMode) {
+            // Token mode: no download, no upload. The signed token names the P8 document; jadice web toolkit
+            // verifies it with the shared secret and reads content and annotations from P8 itself.
+            String docId = stripDocumentPrefix(request.getParameter("docId"));
+            String[] ids = docId == null ? null : docId.split(",");
+            if (ids == null || ids.length != 2) {
+                Logger.logError(this, "execute", request, "Unexpected P8 document id: " + docId);
+                this.sendErrorIFrame(response, "Unexpected P8 document id");
+                return;
+            }
+            boolean writable = "true".equals(request.getParameter("viewAnnotations"))
+                    && "true".equals(request.getParameter("editAnnotations"));
+            long expiresAt = System.currentTimeMillis() / 1000L + tokenTtlMinutes * 60L;
+            String token = IcnToken.create(tokenSecret.trim(), ids[0], ids[1], writable, expiresAt);
+            this.sendViewerIFrame(response, jwtServerURI, token, true);
+            return;
+        }
+
+        // Upload mode (CM repositories, or P8 without token secret): download from ICN, upload to jadice.
         // this is the URL for the REST-Endpoint of CN to receive the document
         final String docUrlString = request.getParameter("docUrl");
         Logger.logDebug(this, "execute", request,
@@ -131,7 +184,6 @@ public class JWTViewerPluginService extends PluginService {
         String contentType = request.getParameter("contentType");
         String viewAnnotations = request.getParameter("viewAnnotations");
         String editAnnotations = request.getParameter("editAnnotations");
-        String serverType = request.getParameter("serverType");
         // The P8 id is only handed over when the admin enabled P8 annotations in the plugin configuration;
         // with it, jadice loads the document via icn:// (reads/writes FileNet annotations), without it via
         // upload:// (display only, no ICN integration module needed on the jadice side).
@@ -140,10 +192,7 @@ public class JWTViewerPluginService extends PluginService {
             // Only transfer the P8-ID to jadice if it is allowed to view and edit annotations
             // if that is set to false, we don't transfer the ID so jadice won't be able to
             // load the annotations as the ID is missing
-            p8Id = request.getParameter("docId");
-            if (p8Id != null && p8Id.startsWith(ICN_DOCUMENT_ID_PREFIX)) {
-                p8Id = p8Id.substring(ICN_DOCUMENT_ID_PREFIX.length());
-            }
+            p8Id = stripDocumentPrefix(request.getParameter("docId"));
         }
 
         // Copy the cookies so the call is authenticated
@@ -209,7 +258,7 @@ public class JWTViewerPluginService extends PluginService {
      *
      * @param response       The response stream.
      * @param jwtEndpointUrl The URI pointing to the <i>jadice web viewer</i> instance.
-     * @param uploadId       The id returned by the upload endpoint.
+     * @param uploadId       The id returned by the upload endpoint, or the signed token in token mode.
      * @param p8Document     {@code true} when the document lives in P8 and annotations are to be read/written;
      *                       the viewer then loads {@code icn://} (needs the ICN integration on the server),
      *                       otherwise plain {@code upload://}.

@@ -21,6 +21,8 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                         this.renderQuality.set("value", jsonConfig.renderQuality);
                         this.icnServerURI.set('value', jsonConfig.icnServerURI);
                         this.p8AnnotationsEnabled.set("checked", jsonConfig.p8AnnotationsEnabled === true);
+                        this.tokenSecret.set("value", jsonConfig.tokenSecret || "");
+                        this.tokenTtlMinutes.set("value", jsonConfig.tokenTtlMinutes || "480");
                         console.log("JWT Server URL: " + jsonConfig.jwtServerURI);
                         console.log("Render-Quality " + jsonConfig.renderQuality);
                     } else {
@@ -43,7 +45,9 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                         "jwtServerURI": this.jwtServerURI.get("value"),
                         "renderQuality": this.renderQuality.get("value"),
                         "icnServerURI": this.icnServerURI.get("value"),
-                        "p8AnnotationsEnabled": this.p8AnnotationsEnabled.get("checked") === true
+                        "p8AnnotationsEnabled": this.p8AnnotationsEnabled.get("checked") === true,
+                        "tokenSecret": this.tokenSecret.get("value"),
+                        "tokenTtlMinutes": this.tokenTtlMinutes.get("value")
                     };
                     this.configurationString = JSON.stringify(configJson);
                     this.onSaveNeeded(true);

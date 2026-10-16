@@ -92,6 +92,18 @@ documents are opened via `upload://` and only displayed. The plugin itself holds
 
 ### How the plugin talks to jadice web toolkit
 
+There are two modes.
+
+**Token mode (P8 repositories, recommended):** enable "Load and save P8 annotations via jadice" and set a
+"Token secret" (at least 32 characters; the same value as `webtoolkit.icn.token.secret` on the jadice web toolkit
+server). The plugin then neither downloads nor uploads the document. It builds a signed, time-limited token with the
+P8 object store and document id plus the user's annotation edit right and opens the viewer with
+`?u={"uri":"icn://<token>"}`. jadice web toolkit verifies the token, reads content and annotations directly from
+P8 with its technical user, and any instance behind a load balancer can serve it. Requires
+`webtoolkit-content-navigator-integration` and the P8 connection on the jadice web toolkit side.
+
+**Upload mode (CM repositories, or P8 without a token secret):**
+
 1. The plugin (running inside the Content Navigator server) downloads the document from ICN and posts it as
    `multipart/form-data` to `<jadice web toolkit URL>/upload` (endpoint of the `webtoolkit-addon-upload` module).
    For P8 repositories the form field `metaMapFlat` carries `p8Id=<objectStoreId>,<documentId>`.
@@ -101,7 +113,8 @@ documents are opened via `upload://` and only displayed. The plugin itself holds
 
 No P8 credentials are transferred. Upload limits are those of the jadice web toolkit server
 (`spring.servlet.multipart.max-file-size`). The `/upload` endpoint is unauthenticated; restrict it to the ICN server
-at network or reverse-proxy level.
+at network or reverse-proxy level. Upload mode is not cluster-safe: the upload and the viewer request must reach the
+same jadice web toolkit instance.
 
 ### jadice web toolkit integration
 
