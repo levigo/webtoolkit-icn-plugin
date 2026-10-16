@@ -102,6 +102,11 @@ P8 object store and document id plus the user's annotation edit right and opens 
 P8 with its technical user, and any instance behind a load balancer can serve it. Requires
 `webtoolkit-content-navigator-integration` and the P8 connection on the jadice web toolkit side.
 
+Security note for token mode: the plugin signs the document id and the annotation privileges as the browser sends
+them to the plugin service; it does not re-check them against ICN before signing. Until that is added, treat every
+ICN user as able to open any P8 document the technical user can read. Keep the secret out of logs and the ICN
+configuration export.
+
 **Upload mode (CM repositories, or P8 without a token secret):**
 
 1. The plugin (running inside the Content Navigator server) downloads the document from ICN and posts it as
