@@ -120,7 +120,6 @@ public class JWTViewerPluginService extends PluginService {
     public void execute(PluginServiceCallbacks callbacks, HttpServletRequest request, HttpServletResponse response) {
         // Get JWT endpoint from configuration
         String jwtServerURI;
-        String renderQuality;
         String icnServerURI;
         boolean p8AnnotationsEnabled;
         String tokenSecret;
@@ -129,7 +128,6 @@ public class JWTViewerPluginService extends PluginService {
             JSONObject configuration = JSONObject.parse(callbacks.loadConfiguration());
             jwtServerURI = (String) configuration.get("jwtServerURI");
             icnServerURI = (String) configuration.get("icnServerURI");
-            renderQuality = (String) configuration.get("renderQuality");
             p8AnnotationsEnabled = Boolean.TRUE.equals(configuration.get("p8AnnotationsEnabled"));
             tokenSecret = (String) configuration.get("tokenSecret");
             tokenTtlMinutes = parseTtl(configuration.get("tokenTtlMinutes"));

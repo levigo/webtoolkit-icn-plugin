@@ -17,11 +17,6 @@ Below is a small list with features of the jadice web toolkit viewer
 | OCR layer support              | :heavy_check_mark: |
 | Javascript API for viewer      | :heavy_check_mark: |
 
-### Render Quality
-
-<a href="docs/daeja.jpg"><img src="docs/daeja.jpg" style="width:400px;height:371px;display:inline-block"></a>
-<a href="docs/webtoolkit.jpg"><img src="docs/webtoolkit.jpg" style="width:381px;height:371px;display:inline-block"></a>
-
 ## Version support
 
 This plugin requires Content Navigator version 3.0.x and was tested with version 3.0.7 and version 3.0.9

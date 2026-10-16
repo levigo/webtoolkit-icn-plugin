@@ -18,13 +18,11 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                         var jsonConfig = JSON.parse(this.configurationString);
 
                         this.jwtServerURI.set("value", jsonConfig.jwtServerURI);
-                        this.renderQuality.set("value", jsonConfig.renderQuality);
                         this.icnServerURI.set('value', jsonConfig.icnServerURI);
                         this.p8AnnotationsEnabled.set("checked", jsonConfig.p8AnnotationsEnabled === true);
                         this.tokenSecret.set("value", jsonConfig.tokenSecret || "");
                         this.tokenTtlMinutes.set("value", jsonConfig.tokenTtlMinutes || "480");
                         console.log("JWT Server URL: " + jsonConfig.jwtServerURI);
-                        console.log("Render-Quality " + jsonConfig.renderQuality);
                     } else {
                         // Try to guess the URL
                         var href = window.location.href;
@@ -43,7 +41,6 @@ define(["dojo/_base/declare", "dijit/_TemplatedMixin",
                 _onFieldChange: function () {
                     var configJson = {
                         "jwtServerURI": this.jwtServerURI.get("value"),
-                        "renderQuality": this.renderQuality.get("value"),
                         "icnServerURI": this.icnServerURI.get("value"),
                         "p8AnnotationsEnabled": this.p8AnnotationsEnabled.get("checked") === true,
                         "tokenSecret": this.tokenSecret.get("value"),
