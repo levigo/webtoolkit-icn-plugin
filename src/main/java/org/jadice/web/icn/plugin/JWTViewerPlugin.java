@@ -28,9 +28,21 @@ public class JWTViewerPlugin extends PluginViewerDef {
         return false;
     }
 
+    /**
+     * Frameless viewer: the plugin's own widget ({@link #getViewerClass()}) asks the service for the viewer URL and
+     * embeds it in an iframe it owns, so Content Navigator never touches a cross-origin frame. The former launch
+     * URL pattern (Content Navigator's generic iframe viewer, same origin required) is kept here for reference:
+     * {@code servicesUrl+'/plugin.do?plugin=JWTPlugin&action=jwtViewerPluginService&docUrl='+encodeURIComponent(docUrl)
+     * +'&contentType='+mimeType+'&docId='+docId+'&targetContentType=application/pdf&serverType='+serverType+privs}
+     */
     @Override
     public String getLaunchUrlPattern() {
-        return "servicesUrl+'/plugin.do?plugin=JWTPlugin&action=jwtViewerPluginService&docUrl='+encodeURIComponent(docUrl)+'&contentType='+mimeType+'&docId='+docId+'&targetContentType=application/pdf&serverType='+serverType+privs";
+        return "";
+    }
+
+    @Override
+    public String getViewerClass() {
+        return "JwtPluginDojo.JWTViewerPlugin";
     }
 
     @Override

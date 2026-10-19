@@ -71,7 +71,7 @@ public class JWTPlugin extends Plugin {
      */
     @Override
     public String getName(Locale locale) {
-        return "jadice web toolkit plugin";
+        return "jadice web viewer plugin";
     }
 
     /**
@@ -86,7 +86,7 @@ public class JWTPlugin extends Plugin {
      */
     @Override
     public String getVersion() {
-        return "1.2.1";
+        return "1.0.0";
     }
 
     /**

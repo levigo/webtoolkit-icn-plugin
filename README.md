@@ -1,129 +1,99 @@
-# webtoolkit-icn-plugin: ICN Plugin for jadice web toolkit
+# webtoolkit-icn-plugin: ICN Plugin for jadice web viewer
 
-jadice® web toolkit is a web-based multi-format viewer for several formats like PDF, TIFF, AFP, MO:DCA, PNG, JPEG and more. 
+jadice® web viewer is a web-based multi-format viewer for several formats like PDF, TIFF, AFP, MO:DCA, PNG, JPEG and more. 
 With this plugin jadice can be configured in IBM Content Navigator as viewer for documents instead of Daeja One Viewer.
 
 ## Features
 
-Below is a small list with features of the jadice web toolkit viewer
+Below is a small list with features of the jadice web viewer
 
-| Feature                        | Available          |
-|--------------------------------| ------------------ |
-| P8 Annotations (read)          | :heavy_check_mark: |
-| P8 Annotations (write)         | :heavy_check_mark: |
-| Filenet IS Annotations (read)  | :heavy_check_mark: |
-| Extensibility                  | :star: :star: :star: |
-| viewer can be used outside ICN | :heavy_check_mark: |
-| OCR layer support              | :heavy_check_mark: |
-| Javascript API for viewer      | :heavy_check_mark: |
+| Feature | Available |
+|---|---|
+| Display documents of any Content Navigator repository | yes (upload mode) |
+| P8 annotations: read and write via the viewer | yes (token mode) |
+| No document transfer, load-balancer safe | yes (token mode) |
+| No P8 credentials in Content Navigator | yes |
 
 ## Version support
 
-This plugin requires Content Navigator version 3.0.x and was tested with version 3.0.7 and version 3.0.9
+This plugin requires Content Navigator 3.0.x; it was tested with 3.0.7 and jadice web viewer 2.0 (jadice web
+toolkit 8.0).
 
 ## Installation
 
 ### Plugin Installation
-1. Make sure the plugin JAR-file (e.g. webtoolkit-content-navigator-plugin-1.2.0.jar) is accessible from Content Navigator
+1. Make sure the plugin JAR file (`target/webtoolkit-icn-plugin-<version>.jar`, see Development) is accessible
+   from the Content Navigator server
 2. Install the plugin via the admin-panel
-3. Make sure you correctly define the "jadice web toolkit URL" field in the plugin installation process (e.g. http://myicnhost/webtoolkit , see below).
+3. Configure the plugin (see below): the HTTPS "jadice web viewer URL" and either the token secret (P8 annotations)
+   or the Content Navigator server URL (display only).
 4. Create a view-mapping for the new plugin in the admin-panel
 5. Make sure the view-mapping is applied for the desired desktop
 
-### jadice web toolkit Installation
+### jadice web viewer Installation
 
-This url of jadice web toolkit configured in the plugin is used by the Content Navigator server to transfer 
-the documents to the jadice web toolkit and in the viewing window of the web-browser (client). 
-As the Content Navigator has a strict same-origin-policy, this URL must use the same base-path as the Content Navigator 
-itself. To achieve this, either deploy the jadice web toolkit WAR-file on the same application server as the 
-Content Navigator or use a proxy. Chapter 9.8 of the "*Customizing and Extending
-IBM Content Navigator*" Redbook provides more information about this setup. Hint: configure `underscores_in_headers on` 
-in Nginx if you're using Nginx as reverse-proxy.
+Deploy jadice web viewer as a standalone application, for example with
+Spring Boot, and serve it over **HTTPS**. The "jadice web viewer URL" configured in the plugin is used by the browser, which embeds the viewer in an
+iframe, and, in display-only mode, by the Content Navigator server for the upload.
 
-#### Sidecar-deployment
+Content Navigator ships a Content Security Policy with `frame-src 'self' https:`. An HTTP viewer URL on another
+origin is therefore blocked by the browser; an HTTPS URL is allowed without changing the Content Navigator
+configuration. A reverse proxy or a deployment on the Content Navigator application server is not required.
 
-In this setup, jadice web toolkit is installed on the same application server as the Content Navigator.
-With this scenario you don't have to worry about same-origin problems. Unfortunately, if you need write
-support for annotations, this setup won't work as the IBM P8 libraries seem to interfere with the libraries
-that are loaded by the Content Navigator. The solution is a standalone-deployment of jadice web toolkit.
+If the viewer needs its own session cookie inside the iframe and Content Navigator itself runs on HTTP or on another
+site, set the cookie to `SameSite=None; Secure` (Spring Boot: `server.servlet.session.cookie.same-site: none`).
 
-#### Standalone & Nginx
+### Plugin configuration: two modes
 
-You can deploy jadice web toolkit to any other application server or run it as standalone application with Spring Boot.
-Since the Content Navigator plugin embeds the jadice viewer with an iframe, the same-policy-origin blocks the viewer
-from rendering in this setup. A reverse-proxy is needed to the Content Navigator and the jadice viewer do have
-the same origin.
+| Setting | With P8 annotations | Display only |
+|---|---|---|
+| jadice web viewer URL | required, `https://` | required, `https://` |
+| Load and save P8 annotations via jadice | on | off |
+| Token secret (at least 32 characters) | required | not used |
+| Token lifetime (minutes) | optional, default 480 | not used |
+| Content Navigator server URL | not used | required |
 
-If you choose Nginx for this job, make sure you enable the option `underscores_in_headers on` in the server-block.
-An example configuration could look like this:
-```text
-server {
-  server_name ecm.levigo.de;
-  listen 8080 default_server;
-  underscores_in_headers on;
-
-  location /navigator/ {
-    proxy_pass http://localhost:9081/navigator/;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-
-  location /webtoolkit/ {
-    proxy_pass http://localhost:8090/webtoolkit/;
-  }
-}
-```
-
-### Configuring write support for annotations
-
-Since version 1.2.0 of the plugin, it is possible to persist changes made to a document. The annotations are directly
-stored to the P8 repository by the jadice web toolkit. Enable **"Load and save P8 annotations via jadice"** in the
-plugin configuration (off by default); the plugin then hands the P8 object id to jadice and opens the document via
-`icn://`, which requires `webtoolkit-content-navigator-integration` and the P8 connection (`webtoolkit.icn.p8.uri`,
-`.domain`, `.user`, `.password`, `.os`) in the `application.yml` of the jadice web toolkit. With the option disabled,
-documents are opened via `upload://` and only displayed. The plugin itself holds no P8 credentials.
-
-## Integration
-
-### How the plugin talks to jadice web toolkit
-
-There are two modes.
-
-**Token mode (P8 repositories, recommended):** enable "Load and save P8 annotations via jadice" and set a
-"Token secret" (at least 32 characters; the same value as `webtoolkit.icn.token.secret` on the jadice web toolkit
-server). The plugin then neither downloads nor uploads the document. It builds a signed, time-limited token with the
-P8 object store and document id plus the user's annotation edit right and opens the viewer with
-`?u={"uri":"icn://<token>"}`. jadice web toolkit verifies the token, reads content and annotations directly from
-P8 with its technical user, and any instance behind a load balancer can serve it. Requires
-`webtoolkit-content-navigator-integration` and the P8 connection on the jadice web toolkit side.
+**With P8 annotations (token mode).** The plugin transfers no document at all. For a P8 document it builds a
+signed, time-limited token with the P8 object store and document id, the user's annotation edit right and the ICN
+user id, and opens the viewer with `?u={"uri":"icn://<token>"}`. The viewer verifies the token with the shared
+secret (`webtoolkit.icn.token.secret`), reads content and annotations directly from P8 with its technical user
+(`webtoolkit.icn.p8.uri`, `.user`, `.password`, optional `.domain`) and writes annotations back. Any instance behind
+a load balancer can serve the token. Viewer side: `webtoolkit-content-navigator-integration` plus IBM's `Jace.jar` on
+the classpath. Documents from non-P8 repositories are shown without annotations via the upload path below; this
+needs the Content Navigator server URL as well, otherwise the plugin falls back to the request's own URL.
 
 Security note for token mode: before signing, the plugin fetches the document through Content Navigator in the
 user's own security context (`PluginServiceCallbacks.getP8Document`), so a user can only obtain tokens for documents
 they may read, and the ids in the token come from that document, not from the request. The edit right in the token
 requires both ICN's `editAnnotations` privilege and the FileNet "Link/Annotate" right on the document. The token also
-carries the ICN user id (`sub`) so that jadice web toolkit can log who opened and annotated a document; it is used
-for logging only, never for access decisions. Keep the
-secret out of logs and the ICN configuration export. Building the plugin now needs the FileNet `Jace.jar` on the
-classpath (`provided`, see `pom.xml`); the Content Navigator runtime supplies it.
+carries the ICN user id (`sub`) so that the viewer can log who opened and annotated a document; it is used for
+logging only, never for access decisions. Keep the secret out of logs and the ICN configuration export. Building the
+plugin needs the FileNet `Jace.jar` on the classpath (`provided`, see `pom.xml`); the Content Navigator runtime
+supplies it.
 
-**Upload mode (CM repositories, or P8 without a token secret):**
+**Display only (upload mode).** The plugin, running inside the Content Navigator server, downloads the document
+from the configured Content Navigator server URL and posts it as `multipart/form-data` to
+`<jadice web viewer URL>/upload` (endpoint of the `webtoolkit-addon-upload` module). The response is an upload id;
+the plugin opens the viewer with `?u={"uri":"upload://<uploadId>"}`. No P8 ids and no credentials are transferred,
+annotations are neither read nor written, and the ICN integration module is not needed on the viewer side. Upload
+limits are those of the viewer (`spring.servlet.multipart.max-file-size`). The `/upload` endpoint is
+unauthenticated; restrict it to the ICN server at network level. Upload mode is not cluster-safe: the upload and
+the viewer request must reach the same instance.
 
-1. The plugin (running inside the Content Navigator server) downloads the document from ICN and posts it as
-   `multipart/form-data` to `<jadice web toolkit URL>/upload` (endpoint of the `webtoolkit-addon-upload` module).
-   For P8 repositories the form field `metaMapFlat` carries `p8Id=<objectStoreId>,<documentId>`.
-2. The response is an upload id. The plugin opens the viewer in an iframe with the generic source parameter
-   `?u={"uri":"icn://<uploadId>"}` (URL-encoded). For non-P8 documents, or when the user may not edit annotations,
-   the plain `upload://<uploadId>` is used instead, so the ICN integration module is only needed for P8 annotations.
+### How the viewer is embedded
 
-No P8 credentials are transferred. Upload limits are those of the jadice web toolkit server
-(`spring.servlet.multipart.max-file-size`). The `/upload` endpoint is unauthenticated; restrict it to the ICN server
-at network or reverse-proxy level. Upload mode is not cluster-safe: the upload and the viewer request must reach the
-same jadice web toolkit instance.
+The plugin registers its own viewer widget (`JwtPluginDojo.JWTViewerPlugin`, a `DocViewer` subclass). When a
+document is opened, the widget calls the plugin service `jwtViewerPluginService` with `format=json`, receives
+the viewer URL and sets it as the source of an iframe it owns. The URL carries `connection=longpoll`, `theme=icn`
+(the viewer's Content Navigator theme) and the document source as `u={"uri":...}`. Errors from the service
+(invalid configuration, missing access, viewer not reachable) are shown inside the viewer area.
 
-### jadice web toolkit integration
+## Integration
 
-Your jadice web toolkit installation needs the following module (it pulls in `webtoolkit-p8-integration` and
-`webtoolkit-addon-upload`), so it can serve the documents transferred by the webtoolkit-icn-plugin
+### jadice web viewer integration
+
+For P8 annotations the viewer needs the following module (it pulls in `webtoolkit-p8-integration` and
+`webtoolkit-addon-upload`); display-only installations need `webtoolkit-addon-upload` only:
 
 ```xml
 <dependency>
@@ -132,13 +102,16 @@ Your jadice web toolkit installation needs the following module (it pulls in `we
 </dependency>
 ```
 
-The module is part of the jadice web toolkit and bound to the respective version. More information can be found in the README.md of this module.
+The module is part of the jadice web toolkit (the server runtime of the viewer) and bound to the respective version. More information can be found in the README.md of this module.
 
 ## Development
 
-- Get a j2ee.jar (e.g. from your Application server) and place it under /lib
-- Get navigatorAPI.jar from Content Navigator and place it under /lib
-- Run maven task e.g. `mvn install`
+- Put `j2ee.jar` and `navigatorAPI.jar` from your Content Navigator installation under `/lib` (see `lib/README.md`).
+- Install IBM's `Jace.jar` into your local Maven repository as `p8-client:jace:5.5.4.0` (command in `lib/README.md`);
+  the plugin compiles against it with `provided` scope and never bundles it.
+- `mvn package` builds `target/webtoolkit-icn-plugin-<version>.jar` and runs the unit tests (token codec, access
+  check, configuration validation). The token test vector is shared with `IcnTokenCodecTest` in the jadice web
+  toolkit; keep both identical.
 
 ## License
 

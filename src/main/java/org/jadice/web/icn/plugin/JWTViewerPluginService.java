@@ -40,14 +40,8 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class JWTViewerPluginService extends PluginService {
 
-    /** Upload endpoint of the jadice web toolkit addon-upload module (relative to the configured server URL). */
+    /** Upload endpoint of the jadice web toolkit addon-upload module (relative to the configured viewer URL). */
     private final static String JWT_UPLOAD_PATH = "upload";
-    /** Prefix of the ICN document id that is stripped before the P8 ids are handed to jadice. */
-    private final static String ICN_DOCUMENT_ID_PREFIX = "Document,";
-    /** Default lifetime of a token (first open) when the admin panel leaves the field empty. */
-    private final static long DEFAULT_TOKEN_TTL_MINUTES = 480L;
-    private final static java.util.concurrent.atomic.AtomicBoolean TOKEN_SECRET_WARNED =
-            new java.util.concurrent.atomic.AtomicBoolean();
 
     /**
      * ICN item ids look like {@code <className>,{objectStoreGuid},{documentGuid}}; the class name is
@@ -66,23 +60,60 @@ public class JWTViewerPluginService extends PluginService {
         return new String[]{parts[parts.length - 2].trim(), parts[parts.length - 1].trim()};
     }
 
-    private static String stripDocumentPrefix(String docId) {
-        if (docId != null && docId.startsWith(ICN_DOCUMENT_ID_PREFIX)) {
-            return docId.substring(ICN_DOCUMENT_ID_PREFIX.length());
+    /**
+     * The user's access mask on the fetched document; when FileNet cannot provide it (property not fetched by
+     * ICN), the ICN privilege alone decides and a warning is logged.
+     */
+    private boolean mayAnnotate(com.filenet.api.core.Document fetched, HttpServletRequest request) {
+        try {
+            return IcnAccess.mayAnnotate(fetched.getAccessAllowed());
+        } catch (RuntimeException e) {
+            Logger.logWarning(this, "execute", request, "Could not read the access mask of the P8 document, "
+                    + "relying on the ICN privilege for the edit right: " + e.getMessage());
+            return true;
         }
-        return docId;
     }
 
-    private static long parseTtl(Object configured) {
-        if (configured == null) {
-            return DEFAULT_TOKEN_TTL_MINUTES;
+    /**
+     * The ICN user for the token's {@code sub}: {@code PluginServiceCallbacks.getUserId()} when ICN provides it
+     * (it throws for some service invocation paths), otherwise the container's remote user, otherwise none.
+     */
+    private String userIdOf(PluginServiceCallbacks callbacks, HttpServletRequest request) {
+        try {
+            String userId = callbacks.getUserId();
+            if (userId != null && !userId.trim().isEmpty()) {
+                return userId;
+            }
+        } catch (RuntimeException e) {
+            Logger.logDebug(this, "execute", request, "callbacks.getUserId() not available: " + e);
         }
         try {
-            long ttl = Long.parseLong(String.valueOf(configured).trim());
-            return ttl > 0 ? ttl : DEFAULT_TOKEN_TTL_MINUTES;
-        } catch (NumberFormatException e) {
-            return DEFAULT_TOKEN_TTL_MINUTES;
+            String remoteUser = request.getRemoteUser();
+            if (remoteUser == null && request.getUserPrincipal() != null) {
+                remoteUser = request.getUserPrincipal().getName();
+            }
+            return remoteUser;
+        } catch (RuntimeException e) {
+            return null;
         }
+    }
+
+    /** Exception class, message and the first stack frame of this plugin, for the error shown in ICN. */
+    private static String describe(Throwable e) {
+        StringBuilder sb = new StringBuilder(e.toString());
+        for (StackTraceElement frame : e.getStackTrace()) {
+            if (frame.getClassName().startsWith("org.jadice.")) {
+                sb.append(" at ").append(frame.getClassName()).append('.').append(frame.getMethodName())
+                        .append(':').append(frame.getLineNumber());
+                break;
+            }
+        }
+        if (e.getStackTrace().length > 0 && !sb.toString().contains(" at ")) {
+            StackTraceElement top = e.getStackTrace()[0];
+            sb.append(" at ").append(top.getClassName()).append('.').append(top.getMethodName())
+                    .append(':').append(top.getLineNumber());
+        }
+        return sb.toString();
     }
 
     /**
@@ -118,78 +149,87 @@ public class JWTViewerPluginService extends PluginService {
      */
     @Override
     public void execute(PluginServiceCallbacks callbacks, HttpServletRequest request, HttpServletResponse response) {
-        // Get JWT endpoint from configuration
-        String jwtServerURI;
-        String icnServerURI;
-        boolean p8AnnotationsEnabled;
-        String tokenSecret;
-        long tokenTtlMinutes;
         try {
-            JSONObject configuration = JSONObject.parse(callbacks.loadConfiguration());
-            jwtServerURI = (String) configuration.get("jwtServerURI");
-            icnServerURI = (String) configuration.get("icnServerURI");
-            p8AnnotationsEnabled = Boolean.TRUE.equals(configuration.get("p8AnnotationsEnabled"));
-            tokenSecret = (String) configuration.get("tokenSecret");
-            tokenTtlMinutes = parseTtl(configuration.get("tokenTtlMinutes"));
+            doExecute(callbacks, request, response);
+        } catch (RuntimeException e) {
+            Logger.logError(this, "execute", request, "Unexpected failure", e);
+            this.sendError(request, response, "jadice web viewer could not be opened: " + describe(e));
+        }
+    }
+
+    private void doExecute(PluginServiceCallbacks callbacks, HttpServletRequest request, HttpServletResponse response) {
+        PluginConfig config;
+        try {
+            config = PluginConfig.of(JSONObject.parse(callbacks.loadConfiguration()));
         } catch (final Exception e) {
             Logger.logError(this, "execute", "Couldn't load the configuration. ", e);
-            this.sendErrorIFrame(response, "Couldn't load the configuration.");
+            this.sendError(request, response, "Couldn't load the configuration.");
             return;
         }
-        if (jwtServerURI == null) {
-            Logger.logError(this, "execute", request, "jadice web toolkit server url not configured");
-            this.sendErrorIFrame(response, "jadice web toolkit server url not configured");
+        String invalid = config.validate();
+        if (invalid != null) {
+            Logger.logError(this, "execute", request, "Plugin configuration invalid: " + invalid);
+            this.sendError(request, response, invalid);
             return;
         }
+        String viewerUrl = config.getViewerUrl();
         String serverType = request.getParameter("serverType");
-        boolean p8Document = p8AnnotationsEnabled && "p8".equalsIgnoreCase(serverType);
-        boolean tokenMode = p8Document && tokenSecret != null && !tokenSecret.trim().isEmpty();
-        if (p8Document && !tokenMode && TOKEN_SECRET_WARNED.compareAndSet(false, true)) {
-            Logger.logWarning(this, "execute", request, "P8 annotations are enabled but no token secret is "
-                    + "configured; falling back to uploading the document (not cluster-safe)");
+        boolean tokenMode = config.usesToken(serverType);
+        if (config.isP8AnnotationsEnabled() && !tokenMode) {
+            Logger.logDebug(this, "execute", request, "P8 annotations are enabled but the repository type is '"
+                    + serverType + "'; opening the document without annotations via upload");
         }
         if (tokenMode) {
             // Token mode: no download, no upload. The signed token names the P8 document; jadice web toolkit
             // verifies it with the shared secret and reads content and annotations from P8 itself.
-            // The ids and the edit right are NOT taken from the request parameters (the browser builds them):
-            // ICN fetches the document in the user's own security context, which proves read access, and the
-            // user's access mask on it decides whether annotating is allowed.
-            String docUrlForIds = request.getParameter("docUrl");
-            String repositoryId = IcnAccess.queryParam(docUrlForIds, "repositoryId");
-            String vsId = IcnAccess.queryParam(docUrlForIds, "vsId");
-            String rawDocId = request.getParameter("docId");
-            com.filenet.api.core.Document fetched;
+            // Access check: ICN fetches the document named by docId in the user's own security context; only
+            // then is a token signed for exactly that id. The edit right additionally needs the user's
+            // FileNet Link/Annotate right on the document (when the access mask is available).
             try {
-                fetched = repositoryId == null || rawDocId == null ? null
-                        : callbacks.getP8Document(repositoryId, rawDocId, vsId == null ? "" : vsId, "");
-            } catch (Exception e) {
-                Logger.logError(this, "execute", request, "Access check for the P8 document failed", e);
-                fetched = null;
+                String docUrlForIds = request.getParameter("docUrl");
+                String repositoryId = IcnAccess.queryParam(docUrlForIds, "repositoryId");
+                String vsId = IcnAccess.queryParam(docUrlForIds, "vsId");
+                String rawDocId = request.getParameter("docId");
+                String[] ids = p8IdsOf(rawDocId);
+                if (ids == null || repositoryId == null) {
+                    Logger.logError(this, "execute", request, "Missing P8 document id or repository id");
+                    this.sendError(request, response, "Unexpected P8 document id");
+                    return;
+                }
+                com.filenet.api.core.Document fetched;
+                try {
+                    fetched = callbacks.getP8Document(repositoryId, rawDocId, vsId == null ? "" : vsId, "");
+                } catch (Exception e) {
+                    Logger.logError(this, "execute", request, "Access check for the P8 document failed", e);
+                    fetched = null;
+                }
+                if (fetched == null) {
+                    this.sendError(request, response, "Not authorized to open this document");
+                    return;
+                }
+                boolean icnEdit = "true".equals(request.getParameter("viewAnnotations"))
+                        && "true".equals(request.getParameter("editAnnotations"));
+                boolean writable = icnEdit && mayAnnotate(fetched, request);
+                long expiresAt = System.currentTimeMillis() / 1000L + config.getTokenTtlMinutes() * 60L;
+                String token = IcnToken.create(config.getTokenSecret(), ids[0], ids[1], writable, expiresAt,
+                        userIdOf(callbacks, request));
+                this.sendViewer(request, response, viewerUrl, token, true);
+            } catch (RuntimeException e) {
+                Logger.logError(this, "execute", request, "Token mode failed", e);
+                this.sendError(request, response, "jadice web viewer could not be opened: " + describe(e));
             }
-            if (fetched == null) {
-                this.sendErrorIFrame(response, "Not authorized to open this document");
-                return;
-            }
-            String objectStoreId = fetched.getObjectStore().get_Id().toString();
-            String documentId = fetched.getProperties().getIdValue(com.filenet.api.constants.PropertyNames.ID).toString();
-            boolean writable = "true".equals(request.getParameter("viewAnnotations"))
-                    && "true".equals(request.getParameter("editAnnotations"))
-                    && IcnAccess.mayAnnotate(fetched.getAccessAllowed());
-            long expiresAt = System.currentTimeMillis() / 1000L + tokenTtlMinutes * 60L;
-            String token = IcnToken.create(tokenSecret.trim(), objectStoreId, documentId, writable, expiresAt,
-                    callbacks.getUserId());
-            this.sendViewerIFrame(response, jwtServerURI, token, true);
             return;
         }
 
-        // Upload mode (CM repositories, or P8 without token secret): download from ICN, upload to jadice.
+        // Upload mode (P8 annotations disabled, or a non-P8 repository): download from ICN, upload to jadice.
+        // The viewer shows the document via upload://, without any P8 annotations.
         // this is the URL for the REST-Endpoint of CN to receive the document
         final String docUrlString = request.getParameter("docUrl");
         Logger.logDebug(this, "execute", request,
                 "Downloading the following Document from ICN: " + docUrlString);
         URL docUrl = null;
         try {
-            String base = (icnServerURI != null && !"".equals(icnServerURI)) ? icnServerURI : request.getRequestURL().toString();
+            String base = config.getIcnServerUrl() != null ? config.getIcnServerUrl() : request.getRequestURL().toString();
             docUrl = new URL(new URL(base), docUrlString);
         } catch (MalformedURLException malformedURLException) {
             Logger.logError(this, "execute", "MalformedURLException. ", malformedURLException);
@@ -211,20 +251,7 @@ public class JWTViewerPluginService extends PluginService {
         // security_token: -3642916214142016050
         // desktop: jadice
 
-        String p8Id = null;
         String contentType = request.getParameter("contentType");
-        String viewAnnotations = request.getParameter("viewAnnotations");
-        String editAnnotations = request.getParameter("editAnnotations");
-        // The P8 id is only handed over when the admin enabled P8 annotations in the plugin configuration;
-        // with it, jadice loads the document via icn:// (reads/writes FileNet annotations), without it via
-        // upload:// (display only, no ICN integration module needed on the jadice side).
-        if (p8AnnotationsEnabled && "p8".equalsIgnoreCase(serverType) && "true".equals(viewAnnotations)
-                && "true".equals(editAnnotations)) {
-            // Only transfer the P8-ID to jadice if it is allowed to view and edit annotations
-            // if that is set to false, we don't transfer the ID so jadice won't be able to
-            // load the annotations as the ID is missing
-            p8Id = stripDocumentPrefix(request.getParameter("docId"));
-        }
 
         // Copy the cookies so the call is authenticated
         Cookie[] cookies = request.getCookies();
@@ -238,7 +265,7 @@ public class JWTViewerPluginService extends PluginService {
             }
         } else {
             Logger.logError(this, "execute", request, "No cookies present");
-            this.sendErrorIFrame(response, "Not authenticated for ICN");
+            this.sendError(request, response, "Not authenticated for ICN");
             return;
         }
 
@@ -251,24 +278,22 @@ public class JWTViewerPluginService extends PluginService {
             docConnection.setRequestProperty("COOKIE", cookieProperty.toString());
             docStream = docConnection.getInputStream();
             try {
-                // Send it to JWT (addon-upload, multipart). Only the P8 object id travels as meta
-                // property; P8 credentials are configured in the jadice web toolkit
-                // (webtoolkit.icn.p8.*) and never leave it.
-                String url = jwtServerURI + (jwtServerURI.endsWith("/") ? "" : "/") + JWT_UPLOAD_PATH;
-                docGeneratedId = sendMultipartPost(url, docStream, contentType, p8Id, request);
+                // Send it to the viewer (addon-upload, multipart). Nothing but the bytes travels.
+                String url = viewerUrl + (viewerUrl.endsWith("/") ? "" : "/") + JWT_UPLOAD_PATH;
+                docGeneratedId = sendMultipartPost(url, docStream, contentType, request);
                 assert !docGeneratedId.isEmpty();
                 Logger.logDebug(this, "execute", request,
                         "Got the following ID from jadice: " + docGeneratedId);
             } catch (Exception exception) {
                 Logger.logError(this, "execute", request,
                         "An error occurred while transferring the document to jadice", exception);
-                this.sendErrorIFrame(response, "An error occurred while transferring the document");
+                this.sendError(request, response, "An error occurred while transferring the document");
                 return;
             }
         } catch (IOException ioException) {
             Logger.logError(this, "execute", request,
                     "An error occurred while reading the document from ICN", ioException);
-            this.sendErrorIFrame(response, "An error occurred while reading the document from ICN");
+            this.sendError(request, response, "An error occurred while reading the document from ICN");
             return;
         } finally {
             if (docConnection != null) {
@@ -279,7 +304,7 @@ public class JWTViewerPluginService extends PluginService {
             }
         }
         // Display the JWT-viewer in the iframe
-        this.sendViewerIFrame(response, jwtServerURI, docGeneratedId, p8Id != null);
+        this.sendViewer(request, response, viewerUrl, docGeneratedId, false);
     }
 
     /**
@@ -290,14 +315,24 @@ public class JWTViewerPluginService extends PluginService {
      * @param response       The response stream.
      * @param jwtEndpointUrl The URI pointing to the <i>jadice web viewer</i> instance.
      * @param uploadId       The id returned by the upload endpoint, or the signed token in token mode.
-     * @param p8Document     {@code true} when the document lives in P8 and annotations are to be read/written;
-     *                       the viewer then loads {@code icn://} (needs the ICN integration on the server),
-     *                       otherwise plain {@code upload://}.
+     * @param tokenMode      {@code true} for a signed token: the viewer loads {@code icn://} (reads/writes P8
+     *                       annotations, needs the ICN integration on the server), otherwise plain
+     *                       {@code upload://} (display only).
      */
-    private void sendViewerIFrame(HttpServletResponse response, String jwtEndpointUrl, String uploadId, boolean p8Document) {
+    private void sendViewer(HttpServletRequest request, HttpServletResponse response, String jwtEndpointUrl,
+                            String uploadId, boolean tokenMode) {
         try {
             JSONObject source = new JSONObject();
-            source.put("uri", (p8Document ? "icn://" : "upload://") + uploadId);
+            source.put("uri", (tokenMode ? "icn://" : "upload://") + uploadId);
+            if (wantsJson(request)) {
+                // called by the plugin's own viewer widget (JwtPluginDojo.JWTViewerPlugin), which puts the URL
+                // into an iframe it owns; no same-origin requirement on the ICN side
+                String url = jwtEndpointUrl + "?connection=longpoll&theme=icn&u=" + URLEncoder.encode(source.serialize(), "UTF-8");
+                JSONObject json = new JSONObject();
+                json.put("url", url);
+                writeJson(response, json);
+                return;
+            }
             response.setContentType("text/html; charset=utf-8");
             StringBuilder stringBuilder = new StringBuilder();
             stringBuilder.append("<html lang='en'><body>");
@@ -314,14 +349,29 @@ public class JWTViewerPluginService extends PluginService {
         }
     }
 
+    private static boolean wantsJson(HttpServletRequest request) {
+        return "json".equals(request.getParameter("format"));
+    }
+
+    private static void writeJson(HttpServletResponse response, JSONObject json) throws IOException {
+        response.setContentType("application/json; charset=utf-8");
+        response.getOutputStream().write(json.serialize().getBytes(StandardCharsets.UTF_8));
+    }
+
     /**
      * Sends the error message as the IFrames' content.
      *
      * @param response     The response stream.
      * @param errorMessage The error message to display.
      */
-    private void sendErrorIFrame(HttpServletResponse response, String errorMessage) {
+    private void sendError(HttpServletRequest request, HttpServletResponse response, String errorMessage) {
         try {
+            if (wantsJson(request)) {
+                JSONObject json = new JSONObject();
+                json.put("error", errorMessage);
+                writeJson(response, json);
+                return;
+            }
             response.setContentType("text/html");
             final PrintWriter writer = response.getWriter();
             writer.append("<html><body>");
@@ -333,17 +383,16 @@ public class JWTViewerPluginService extends PluginService {
     }
 
     /**
-     * Uploads the document as {@code multipart/form-data} to the addon-upload endpoint of jadice web toolkit.
-     * Form fields: {@code metaMapFlat} ({@code p8Id=<objectStoreId>,<documentId>}, only when present) and
-     * {@code file} (the document bytes).
+     * Uploads the document as {@code multipart/form-data} to the addon-upload endpoint of the viewer. The only
+     * form field is {@code file} (the document bytes); no P8 ids travel, upload mode shows the document without
+     * annotations.
      *
      * @param url         the upload endpoint
      * @param inputStream the document content
      * @param contentType MIME type of the document as reported by ICN, may be {@code null}
-     * @param p8Id        {@code <objectStoreId>,<documentId>} or {@code null}
-     * @return the upload id returned by jadice web toolkit
+     * @return the upload id returned by the viewer
      */
-    private String sendMultipartPost(String url, InputStream inputStream, String contentType, String p8Id,
+    private String sendMultipartPost(String url, InputStream inputStream, String contentType,
                                      HttpServletRequest request) throws Exception {
         String boundary = "----jwt-icn-" + UUID.randomUUID();
         HttpURLConnection httpClient = (HttpURLConnection) new URL(url).openConnection();
@@ -354,11 +403,6 @@ public class JWTViewerPluginService extends PluginService {
 
         int readBytes = 0;
         try (DataOutputStream target = new DataOutputStream(httpClient.getOutputStream())) {
-            if (p8Id != null) {
-                writeAscii(target, "--" + boundary + "\r\n"
-                        + "Content-Disposition: form-data; name=\"metaMapFlat\"\r\n\r\n"
-                        + "p8Id=" + p8Id + "\r\n");
-            }
             writeAscii(target, "--" + boundary + "\r\n"
                     + "Content-Disposition: form-data; name=\"file\"; filename=\"document\"\r\n"
                     + "Content-Type: " + (contentType != null ? contentType : "application/octet-stream") + "\r\n\r\n");

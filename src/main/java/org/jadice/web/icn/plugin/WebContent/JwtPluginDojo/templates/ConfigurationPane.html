@@ -2,30 +2,17 @@
 	<table class="propertyTable" role="presentation">
 		<tr>
 			<td class="propertyRowLabel"><span class="required">*</span> <label
-				for="${id}_jwtServerURI"><i>jadice web toolkit</i> URL:</label>&nbsp;
+				for="${id}_viewerUrl"><i>jadice web viewer</i> URL:</label>&nbsp;
 				<div data-dojo-type="ecm.widget.HoverHelp"
-					data-dojo-attach-point="jwtServerURIHoverHelp"
-					message="Specify the URL of the jadice web toolkit (or its' load balancer). This endpoint must be reachable from ICN-server. Example: http://myicn-server:9081/webtoolkit"></div>
+					data-dojo-attach-point="viewerUrlHoverHelp"
+					message="HTTPS URL of the jadice web viewer (or its load balancer), reachable from the users' browsers and, without P8 annotations, from the Content Navigator server. HTTPS is mandatory: Content Navigator's Content Security Policy only allows HTTPS viewers in the plugin's iframe. Example: https://viewer.example.com"></div>
 			</td>
 			<td class="propertyRowValue">
-				<div id="${id}_jwtServerURI" data-dojo-attach-point="jwtServerURI"
+				<div id="${id}_viewerUrl" data-dojo-attach-point="viewerUrl"
 					data-dojo-attach-event="onKeyUp: _onFieldChange"
 					data-dojo-type="ecm.widget.ValidationTextBox" required="true"
+					regExp="^[Hh][Tt][Tt][Pp][Ss]://.+" invalidMessage="The URL must start with https://"
 					trim="true" propercase="false"></div>
-			</td>
-		</tr>
-		<tr>
-			<td class="propertyRowLabel"><label
-					for="${id}_icnServerURI"><i>Content Navigator</i> server URL:</label>&nbsp;
-				<div data-dojo-type="ecm.widget.HoverHelp"
-					 data-dojo-attach-point="icnServerURIHoverHelp"
-					 message="Specify the server url of the Content Navigator. This endpoint is accessed from Content Navigator itself to retrieve the document. Required is the host WITHOUT context path. Example: http://myicn-server:9081"></div>
-			</td>
-			<td class="propertyRowValue">
-				<div id="${id}_icnServerURI" data-dojo-attach-point="icnServerURI"
-					 data-dojo-attach-event="onKeyUp: _onFieldChange"
-					 data-dojo-type="ecm.widget.ValidationTextBox" required="true"
-					 trim="true" propercase="false"></div>
 			</td>
 		</tr>
 		<tr>
@@ -33,29 +20,30 @@
 					for="${id}_p8AnnotationsEnabled">Load and save P8 annotations via jadice:</label>&nbsp;
 				<div data-dojo-type="ecm.widget.HoverHelp"
 					 data-dojo-attach-point="p8AnnotationsEnabledHoverHelp"
-					 message="When enabled, the P8 object id is handed to jadice web toolkit so it can read the FileNet annotations and write them back. Requires the ICN integration module (webtoolkit-content-navigator-integration) and the P8 connection (webtoolkit.icn.p8.*) on the jadice web toolkit server. When disabled, documents are only displayed."></div>
+					 message="Enabled: P8 documents are opened with a signed token (icn://); the viewer reads and writes the FileNet annotations itself and nothing is uploaded. Needs the token secret here and, on the viewer side, webtoolkit-content-navigator-integration, Jace.jar and the P8 connection (webtoolkit.icn.p8.*). Disabled: every document is downloaded from Content Navigator and uploaded to the viewer (upload://), display only, no annotations."></div>
 			</td>
 			<td class="propertyRowValue">
 				<div id="${id}_p8AnnotationsEnabled" data-dojo-attach-point="p8AnnotationsEnabled"
-					 data-dojo-attach-event="onChange: _onFieldChange"
+					 data-dojo-attach-event="onChange: _onModeChange"
 					 data-dojo-type="dijit.form.CheckBox"></div>
 			</td>
 		</tr>
-		<tr>
-			<td class="propertyRowLabel"><label
+		<tr data-dojo-attach-point="tokenSecretRow">
+			<td class="propertyRowLabel"><span class="required">*</span> <label
 					for="${id}_tokenSecret">Token secret:</label>&nbsp;
 				<div data-dojo-type="ecm.widget.HoverHelp"
 					 data-dojo-attach-point="tokenSecretHoverHelp"
-					 message="Shared secret (at least 32 characters) that is also configured as webtoolkit.icn.token.secret on the jadice web toolkit server. When set together with the P8 annotations option, P8 documents are opened with a signed token instead of being uploaded: no document transfer, works behind a load balancer. Leave empty to keep uploading documents."></div>
+					 message="Shared secret, at least 32 characters, the same value as webtoolkit.icn.token.secret on the jadice web viewer server. Required when P8 annotations are enabled."></div>
 			</td>
 			<td class="propertyRowValue">
 				<div id="${id}_tokenSecret" data-dojo-attach-point="tokenSecret"
 					 data-dojo-attach-event="onKeyUp: _onFieldChange"
 					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
+					 regExp=".{32,}" invalidMessage="At least 32 characters"
 					 trim="true" propercase="false" type="password"></div>
 			</td>
 		</tr>
-		<tr>
+		<tr data-dojo-attach-point="tokenTtlRow">
 			<td class="propertyRowLabel"><label
 					for="${id}_tokenTtlMinutes">Token lifetime (minutes):</label>&nbsp;
 				<div data-dojo-type="ecm.widget.HoverHelp"
@@ -69,10 +57,24 @@
 					 trim="true" propercase="false"></div>
 			</td>
 		</tr>
+		<tr data-dojo-attach-point="icnServerRow">
+			<td class="propertyRowLabel"><span class="required">*</span> <label
+					for="${id}_icnServerURI"><i>Content Navigator</i> server URL:</label>&nbsp;
+				<div data-dojo-type="ecm.widget.HoverHelp"
+					 data-dojo-attach-point="icnServerURIHoverHelp"
+					 message="Base URL of this Content Navigator, without context path, as reachable from the Content Navigator server itself; the plugin downloads the document from it before uploading it to the viewer. Required when P8 annotations are disabled. Example: http://myicn-server:9081"></div>
+			</td>
+			<td class="propertyRowValue">
+				<div id="${id}_icnServerURI" data-dojo-attach-point="icnServerURI"
+					 data-dojo-attach-event="onKeyUp: _onFieldChange"
+					 data-dojo-type="ecm.widget.ValidationTextBox" required="false"
+					 trim="true" propercase="false"></div>
+			</td>
+		</tr>
 		<tr>
 			<td class="propertyRowLabel" colspan="2">
-				<p>Saving annotations is only available for <strong>P8</strong> repositories. The P8 connection
-					(URI, user, password, object store) is configured in the jadice web toolkit
+				<p>Annotations are only available for <strong>P8</strong> repositories and only with the token mode. The
+					P8 connection (URI, user, password) is configured on the jadice web viewer server
 					(<code>webtoolkit.icn.p8.*</code> in its <code>application.yml</code>), not here.</p>
 			</td>
 		</tr>
